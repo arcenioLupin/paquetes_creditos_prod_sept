@@ -1,4 +1,4 @@
-create or replace PACKAGE BODY VENTA.PKG_SWEB_CRED_SOLI_FINANCIERO AS
+create or replace PACKAGE BODY   VENTA.PKG_SWEB_CRED_SOLI_FINANCIERO AS
 PROCEDURE sp_list_resumen
   (
       p_cod_solicitud     VARCHAR2,
@@ -14,12 +14,12 @@ PROCEDURE sp_list_resumen
     V_VAL_PARA_NUM    VVE_CRED_SOLI_PARA.VAL_PARA_NUM%TYPE;
     v_cod_soli_cred   vve_cred_soli.cod_soli_cred%TYPE;
   BEGIN
-          dbms_output.put_line('1'); 
+          dbms_output.put_line('1');
           SELECT VAL_PARA_NUM
             INTO V_VAL_PARA_NUM
             FROM VVE_CRED_SOLI_PARA
            WHERE COD_CRED_SOLI_PARA = 'NROAÑOEEFF';
-           dbms_output.put_line('2'); 
+           dbms_output.put_line('2');
          BEGIN
                 OPEN p_ret_cursor FOR
                  SELECT m.cod_mae_eeff, -- <ID 280 LRodriguez 26.11.19>
@@ -194,23 +194,30 @@ PROCEDURE sp_list_resumen
                         val_bg_var_pat_resu_ejer,
                         val_bg_var_pat_otro,
                         val_bg_var_pat,
-                        val_var_tota_pasi_patr 
+                        val_var_tota_pasi_patr
            -- <I ID 280 LRodriguez 26.11.19>
                    FROM vve_cred_mae_eeff m,vve_cred_soli_eeff s
                   WHERE s.cod_cliente = p_cod_cliente
-                    AND S.IND_MATU IS NULL 
-                    AND s.cod_mae_eeff = m.cod_mae_eeff 
+                    AND S.IND_MATU IS NULL
+                    AND s.cod_mae_eeff = m.cod_mae_eeff
                     AND s.cod_cliente = m.cod_cliente
                     AND s.val_ano_eeff = m.val_ano_eeff
-                    AND m.val_ano_eeff<=(EXTRACT(YEAR FROM sysdate)) 
+                    AND m.val_ano_eeff<=(EXTRACT(YEAR FROM sysdate))
                     AND m.val_ano_eeff>=(EXTRACT(YEAR FROM sysdate)-4+1)
                ORDER BY val_ano_eeff;
 
-           -- <F ID 280 LRodriguez 26.11.19>              
+               /*
+                   FROM vve_cred_mae_eeff
+                  WHERE cod_cliente = p_cod_cliente
+                    AND val_ano_eeff<=(EXTRACT(YEAR FROM sysdate))
+                    AND val_ano_eeff>=(EXTRACT(YEAR FROM sysdate)-4+1)
+
+               */
+           -- <F ID 280 LRodriguez 26.11.19>
             EXCEPTION
                 WHEN NO_DATA_FOUND THEN
                     NULL;
-            END;  
+            END;
 
          BEGIN
                 OPEN p_ret_cursor_mat FOR
@@ -226,16 +233,16 @@ PROCEDURE sp_list_resumen
                         val_matu_ebitda_proy,
                         val_matu_cash_flow_proy,
                         val_matu_fact_ebitda_sdeu,
-                        val_matu_fact_cashf_sdeu                    
+                        val_matu_fact_cashf_sdeu
                    FROM vve_cred_mae_eeff
                   WHERE cod_cliente = p_cod_cliente
-                    AND val_matu_ano_proy>=(EXTRACT(YEAR FROM sysdate)) 
+                    AND val_matu_ano_proy>=(EXTRACT(YEAR FROM sysdate))
                     AND val_matu_ano_proy<=(EXTRACT(YEAR FROM sysdate)+6)
                ORDER BY val_matu_ano_proy;
 
-            END;   
+            END;
 
-      dbms_output.put_line('3');       
+      dbms_output.put_line('3');
    BEGIN
        SELECT seff.cod_soli_cred
          INTO v_cod_soli_cred
@@ -249,10 +256,10 @@ PROCEDURE sp_list_resumen
     EXCEPTION
       WHEN NO_DATA_FOUND THEN
          p_fec_solicitud :=NULL;
-       WHEN TOO_MANY_ROWS THEN  
+       WHEN TOO_MANY_ROWS THEN
          v_cod_soli_cred := NULL;
     END;
-  dbms_output.put_line('4');   
+  dbms_output.put_line('4');
      p_fec_solicitud :=NULL;
      IF (v_cod_soli_cred IS NOT NULL) THEN
          SELECT TO_CHAR(TRUNC(s.fec_soli_cred),'DD/MM/YYYY')
@@ -468,12 +475,12 @@ PROCEDURE sp_ins_resumen
          WHERE s.cod_mae_eeff = m.cod_mae_eeff
            AND s.val_ano_eeff = p_val_ano_eeff
            AND s.cod_cliente = p_cod_cliente
-					 AND s.cod_soli_cred= p_cod_solicitud
+		   AND s.cod_soli_cred= p_cod_solicitud
            AND s.ind_matu is null;
     EXCEPTION
       WHEN NO_DATA_FOUND THEN
          v_cod_mae_eeff:=NULL;
-    END;  
+    END;
 
     --<I Req. 87567 E2.1 ID## avilca 24/12/2020>
     BEGIN
@@ -489,11 +496,11 @@ PROCEDURE sp_ins_resumen
     EXCEPTION
       WHEN NO_DATA_FOUND THEN
          v_cod_mae_eeff_soli:=NULL;
-    END; 
+    END;
     --<F Req. 87567 E2.1 ID## avilca 24/12/2020>
 
         IF v_cod_mae_eeff IS NOT NULL THEN
-             UPDATE vve_cred_mae_eeff 
+             UPDATE vve_cred_mae_eeff
                 SET val_egyp_vtas_tota=p_val_egyp_vtas_tota,
                     val_egyp_cost_vtas_serv=p_val_egyp_cost_vtas_serv,
                     val_egyp_util_brut=p_val_egyp_util_brut,
@@ -664,7 +671,7 @@ PROCEDURE sp_ins_resumen
                     val_bg_var_pat=p_val_bg_var_pat,
                     val_var_tota_pasi_patr=p_val_var_tota_pasi_patr,
                     cod_usua_modi_reg = p_cod_usua_sid,--<I Req. 87567 E2.1 ID## avilca 17/02/2020>
-                    fec_modi_reg = sysdate      --<I Req. 87567 E2.1 ID## avilca  17/02/2020>           
+                    fec_modi_reg = sysdate      --<I Req. 87567 E2.1 ID## avilca  17/02/2020>
               WHERE cod_mae_eeff = v_cod_mae_eeff;
 
               --<I Req. 87567 E2.1 ID## avilca 17/02/2020>
@@ -684,7 +691,7 @@ PROCEDURE sp_ins_resumen
                     p_cod_cliente,
                     p_cod_usua_sid,
                     SYSDATE
-                ); 
+                );
 
               END IF;
             --<F Req. 87567 E2.1 ID## avilca 17/02/2020>
@@ -870,8 +877,8 @@ PROCEDURE sp_ins_resumen
                                             val_bg_var_pat_otro,
                                             val_bg_var_pat,
                                             val_var_tota_pasi_patr,
-                                            cod_usua_modi_reg,--<I Req. 87567 E2.1 ID## avilca  17/02/2020> 
-                                            fec_modi_reg  --<I Req. 87567 E2.1 ID## avilca  17/02/2020> 
+                                            cod_usua_modi_reg,--<I Req. 87567 E2.1 ID## avilca  17/02/2020>
+                                            fec_modi_reg  --<I Req. 87567 E2.1 ID## avilca  17/02/2020>
                                         ) VALUES (
                                             v_cod_mae_eeff,--TO_NUMBER(p_cod_mae_eeff),
                                             p_cod_cliente,
@@ -1046,8 +1053,8 @@ PROCEDURE sp_ins_resumen
                                             p_val_bg_var_pat_otro,
                                             p_val_bg_var_pat,
                                             p_val_var_tota_pasi_patr,
-                                            p_cod_usua_sid,--<I Req. 87567 E2.1 ID## avilca  17/02/2020> 
-                                            sysdate  --<I Req. 87567 E2.1 ID## avilca  17/02/2020> 
+                                            p_cod_usua_sid,--<I Req. 87567 E2.1 ID## avilca  17/02/2020>
+                                            sysdate  --<I Req. 87567 E2.1 ID## avilca  17/02/2020>
                                         );
 
               INSERT INTO vve_cred_soli_eeff (
@@ -1064,12 +1071,12 @@ PROCEDURE sp_ins_resumen
                     p_cod_cliente,
                     p_cod_usua_sid,
                     SYSDATE
-                );    
+                );
 
     END IF;
          ---- I Req. 87567 E1.1 ID 53 AVILCA 01/10/2020
          -- Actualizando fecha de ejecución de registro y verificando cierre de etapa
-        PKG_SWEB_CRED_SOLI_ACTIVIDAD.sp_actu_acti(p_cod_solicitud,'E2','A54',p_cod_usua_sid,p_ret_esta,p_ret_mens); 
+        PKG_SWEB_CRED_SOLI_ACTIVIDAD.sp_actu_acti(p_cod_solicitud,'E2','A54',p_cod_usua_sid,p_ret_esta,p_ret_mens);
          ---- F Req. 87567 E1.1 ID 53 AVILCA 01/10/2020
   COMMIT;
   p_ret_mens := 'El resumen financiero se actualizo con exito.';
@@ -1123,13 +1130,13 @@ PROCEDURE sp_ins_resumen
          WHERE s.cod_mae_eeff = m.cod_mae_eeff
            AND s.val_ano_eeff = p_val_matu_ano_proy
            AND s.cod_cliente = p_cod_cliente
-					 AND s.cod_soli_cred= p_cod_solicitud
+		   AND s.cod_soli_cred= p_cod_solicitud
            AND s.ind_matu = 'S';
     EXCEPTION
       WHEN NO_DATA_FOUND THEN
          v_cod_mae_eeff:=NULL;
-    END; 
-    --<I Req. 87567 E2.1 ID## avilca  17/02/2020>     
+    END;
+    --<I Req. 87567 E2.1 ID## avilca  17/02/2020>
     BEGIN
         SELECT m.cod_mae_eeff
           INTO v_cod_mae_eeff_soli
@@ -1144,10 +1151,10 @@ PROCEDURE sp_ins_resumen
       WHEN NO_DATA_FOUND THEN
          v_cod_mae_eeff_soli:=NULL;
     END;
-  --<F Req. 87567 E2.1 ID## avilca  17/02/2020>       
+  --<F Req. 87567 E2.1 ID## avilca  17/02/2020>
 
         IF v_cod_mae_eeff IS NOT NULL THEN
-             UPDATE vve_cred_mae_eeff 
+             UPDATE vve_cred_mae_eeff
                 SET val_matu_amor_deud_actu=p_val_matu_amor_deud_actu,
                     val_matu_amor_deud_nuev=p_val_matu_amor_deud_nuev,
                     val_matu_gast_fina_deud_actu=p_val_matu_gast_fina_deud_actu,
@@ -1161,7 +1168,7 @@ PROCEDURE sp_ins_resumen
                     fec_modi_reg = sysdate
               WHERE cod_mae_eeff = v_cod_mae_eeff;
 
-              --<I Req. 87567 E2.1 ID## avilca  17/02/2020>     
+              --<I Req. 87567 E2.1 ID## avilca  17/02/2020>
               IF v_cod_mae_eeff_soli IS NULL THEN
 
                   INSERT INTO vve_cred_soli_eeff (
@@ -1184,9 +1191,9 @@ PROCEDURE sp_ins_resumen
                         NULL,
                         NULL,
                         'S'
-                    );                          
+                    );
               END IF;
-              --<F Req. 87567 E2.1 ID## avilca  17/02/2020>     
+              --<F Req. 87567 E2.1 ID## avilca  17/02/2020>
 
     ELSE
          SELECT SEQ_CRED_MAE_EFF.NEXTVAL
@@ -1252,7 +1259,7 @@ PROCEDURE sp_ins_resumen
                     NULL,
                     NULL,
                     'S'
-                );    
+                );
 
     END IF;
 
@@ -1274,7 +1281,7 @@ PROCEDURE sp_ins_resumen
 
   END sp_ins_resumen_maturity;
 
- PROCEDURE sp_list_resumen_rangos
+  PROCEDURE sp_list_resumen_rangos
   (
       p_cod_solicitud     VARCHAR2,
       p_cod_cliente       VARCHAR2,
@@ -1290,12 +1297,12 @@ PROCEDURE sp_ins_resumen
     V_VAL_PARA_NUM    VVE_CRED_SOLI_PARA.VAL_PARA_NUM%TYPE;
     v_cod_soli_cred   vve_cred_soli.cod_soli_cred%TYPE;
   BEGIN
-          dbms_output.put_line('1'); 
+          dbms_output.put_line('1');
           SELECT VAL_PARA_NUM
             INTO V_VAL_PARA_NUM
             FROM VVE_CRED_SOLI_PARA
            WHERE COD_CRED_SOLI_PARA = 'NROAÑOEEFF';
-           dbms_output.put_line('2'); 
+           dbms_output.put_line('2');
          BEGIN
                    OPEN p_ret_cursor FOR
                  SELECT cod_mae_eeff,
@@ -1479,8 +1486,8 @@ PROCEDURE sp_ins_resumen
             EXCEPTION
                 WHEN NO_DATA_FOUND THEN
                     NULL;
-            END;    
-      dbms_output.put_line('3');       
+            END;
+      dbms_output.put_line('3');
    BEGIN
        SELECT seff.cod_soli_cred
          INTO v_cod_soli_cred
@@ -1495,7 +1502,7 @@ PROCEDURE sp_ins_resumen
       WHEN NO_DATA_FOUND THEN
          p_fec_solicitud :=NULL;
     END;
-  dbms_output.put_line('4');   
+  dbms_output.put_line('4');
      p_fec_solicitud :=NULL;
      IF (v_cod_soli_cred IS NOT NULL) THEN
          SELECT TO_CHAR(TRUNC(s.fec_soli_cred),'DD/MM/YYYY')
@@ -1509,6 +1516,6 @@ PROCEDURE sp_ins_resumen
      WHEN OTHERS THEN
             p_ret_esta := -1;
             p_ret_mens := 'sp_list_garantia:' || SQLERRM;
-  END; 
+  END;
 
 END;

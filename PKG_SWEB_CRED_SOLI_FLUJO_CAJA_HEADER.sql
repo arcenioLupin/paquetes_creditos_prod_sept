@@ -1,4 +1,4 @@
-create or replace PACKAGE    VENTA.PKG_SWEB_CRED_SOLI_FLUJO_CAJA AS
+create or replace PACKAGE          VENTA.PKG_SWEB_CRED_SOLI_FLUJO_CAJA AS
 
   PROCEDURE sp_inse_param_camiones 
     (      
@@ -110,3 +110,4 @@ create or replace PACKAGE    VENTA.PKG_SWEB_CRED_SOLI_FLUJO_CAJA AS
   );
 
 END PKG_SWEB_CRED_SOLI_FLUJO_CAJA;
+

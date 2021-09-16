@@ -1,4 +1,4 @@
-create or replace PACKAGE BODY    VENTA.pkg_sweb_cred_soli_reportes AS
+create or replace PACKAGE BODY   VENTA.pkg_sweb_cred_soli_reportes AS
 
     PROCEDURE sp_list_cred_soli_vc_cod_opers (
         p_cod_clie       IN vve_cred_soli.cod_clie%TYPE,

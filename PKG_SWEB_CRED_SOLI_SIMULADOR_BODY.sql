@@ -1,4 +1,4 @@
-create or replace PACKAGE BODY   VENTA.PKG_SWEB_CRED_SOLI_SIMULADOR AS
+create or replace PACKAGE BODY    VENTA.PKG_SWEB_CRED_SOLI_SIMULADOR AS
 
   PROCEDURE sp_list_comp_segu
   (
@@ -986,6 +986,13 @@ create or replace PACKAGE BODY   VENTA.PKG_SWEB_CRED_SOLI_SIMULADOR AS
               ln_val_igv_cuo := ln_val_int_cuo * 0.18;
             END IF;        
 
+            --ln_val_igv_cuo := ln_val_int_cuo * 0.18;
+            --Calcular el monto de la cuota
+            --ln_mon_calc_cuo := lt_arr_crono_modi(i).cuota;
+            --Se inserta el valor del monto de cada cuota en el arreglo que se utilizara para obtener el TIR
+            -- Ya no se va a usar el TIR para validar
+            -- lt_tir_value_list(lt_arr_crono_modi(i).cod_nume_letr + 1) := ln_mon_calc_cuo;        
+
             --Calcular la amortización de capital de la cuota
             IF ln_can_let_per_gra >= lt_arr_crono_modi(i).cod_nume_letr THEN
                 ln_amo_cap_cuo := 0;
@@ -999,7 +1006,10 @@ create or replace PACKAGE BODY   VENTA.PKG_SWEB_CRED_SOLI_SIMULADOR AS
                 ln_dif_cuota   := round(lt_arr_crono_modi(i).cuota,2) - (round(ln_amo_cap_cuo,2)+round(ln_val_int_cuo,2)+round(ln_val_igv_cuo,2)+round(ln_val_prima_segu_per,2));
                 ln_val_int_cuo := ln_val_int_cuo + ln_dif_cuota;
               end if;                
-
+                /*ln_amo_cap_cuo := ln_mon_calc_cuo - 
+                    ln_val_igv_cuo - 
+                    ln_val_int_cuo - 
+                    ln_val_prima_segu_per;*/
             END IF;        
 
             --Calcular el monto de la cuota
@@ -1009,7 +1019,19 @@ create or replace PACKAGE BODY   VENTA.PKG_SWEB_CRED_SOLI_SIMULADOR AS
               ln_mon_calc_cuo := ln_amo_cap_cuo + round(ln_val_int_cuo,2) + round(ln_val_igv_cuo,2) + round(ln_val_prima_segu_per,2);
             END IF;
 
-            ln_sal_fin_cuo := ln_sal_ini_cuo - ln_amo_cap_cuo;        
+            --Calcular el saldo final de la cuota
+            --ln_tmp_sal_fin_cuo := ROUND(ln_sal_ini_cuo, 2) - ROUND(ln_amo_cap_cuo, 2);
+            --ln_sal_fin_cuo := ln_sal_ini_cuo - ln_amo_cap_cuo;
+            ln_sal_fin_cuo := ln_sal_ini_cuo - ln_amo_cap_cuo;
+            /*ln_sal_fin_cuo := CASE WHEN ln_tmp_sal_fin_cuo < 0 THEN 0 
+                                   WHEN ln_tmp_sal_fin_cuo > 0 AND i = lt_arr_crono_modi.COUNT THEN 0 
+                                   ELSE ln_tmp_sal_fin_cuo END;
+            IF ln_tmp_sal_fin_cuo < 0 THEN
+                ln_amo_cap_cuo := ln_amo_cap_cuo - ABS(ln_tmp_sal_fin_cuo);
+            ELSIF ln_tmp_sal_fin_cuo > 0 AND i = lt_arr_crono_modi.COUNT THEN
+                ln_amo_cap_cuo := ln_amo_cap_cuo + ABS(ln_tmp_sal_fin_cuo);
+            END IF;*/
+
             lt_arr_crono_modi(i).saldoinicial := ln_sal_ini_cuo;
             lt_arr_crono_modi(i).capital      := ln_amo_cap_cuo;
             lt_arr_crono_modi(i).interes      := round(ln_val_int_cuo,2);
@@ -1113,7 +1135,8 @@ create or replace PACKAGE BODY   VENTA.PKG_SWEB_CRED_SOLI_SIMULADOR AS
         FROM vve_cred_simu cs               
         WHERE cs.cod_simu = ln_cod_simu;        
 
-    ln_val_tir_gen := pkg_sweb_cred_soli_simulador.fn_tir(lt_tir_value_list);    
+    ln_val_tir_gen := pkg_sweb_cred_soli_simulador.fn_tir(lt_tir_value_list);
+    --ln_val_tcea_gen := TO_CHAR((POWER((1 + (ln_val_tir_gen / 100)), ln_nro_cuotas) - 1) * 100, '999999999999D99');
     ln_val_tcea_gen := TO_CHAR((POWER((1 + (ln_val_tir_gen / 100)), ln_val_meses_periodo) - 1) * 100, '999999999999D99');
 
     pkg_sweb_mae_gene.sp_regi_rlog_erro('AUDI_ERROR',
@@ -1124,6 +1147,12 @@ create or replace PACKAGE BODY   VENTA.PKG_SWEB_CRED_SOLI_SIMULADOR AS
                                         ln_val_tcea_gen || '|' || ln_val_tcea,
                                         NULL);    
 
+    /*
+    IF ln_val_tir_gen != ln_val_tir AND ln_val_tcea_gen != ln_val_tcea THEN
+        p_ret_mens := 'La tasa obtenida no es correcta, por favor verifique las cuotas ingresadas';
+        RAISE ve_error;
+    END IF;
+    */
 	IF p_cod_tipo_ope = 'CC' THEN
 		 --Validaciones Cronograma a medida  
 		BEGIN
@@ -1178,7 +1207,7 @@ create or replace PACKAGE BODY   VENTA.PKG_SWEB_CRED_SOLI_SIMULADOR AS
                                             p_cod_soli_cred);        
   END sp_cuad_crono;  
 
-   PROCEDURE sp_inse_para_simulador
+  PROCEDURE sp_inse_para_simulador
   (
     p_cod_soli_cred          IN vve_cred_simu.cod_soli_cred%type,    
     p_num_prof_veh           IN vve_cred_simu.num_prof_veh%type,    

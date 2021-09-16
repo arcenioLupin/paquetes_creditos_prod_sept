@@ -1,4 +1,4 @@
-create or replace PACKAGE      VENTA.PKG_SWEB_CRED_SOLI AS
+create or replace PACKAGE     VENTA.PKG_SWEB_CRED_SOLI AS
 
   /********************************************************************************
     Nombre:     SP_INSE_CRED_SOLI

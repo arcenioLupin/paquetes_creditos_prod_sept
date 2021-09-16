@@ -1,4 +1,4 @@
-create or replace PACKAGE  VENTA.PKG_SWEB_CRED_SOLI_LEGAL IS
+create or replace PACKAGE     VENTA.PKG_SWEB_CRED_SOLI_LEGAL IS
 
    /*-----------------------------------------------------------------------------
 Nombre : sp_listar_sol_legal

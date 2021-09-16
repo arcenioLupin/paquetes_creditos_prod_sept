@@ -1,4 +1,4 @@
-create or replace PACKAGE   VENTA.PKG_SWEB_CRED_SOLI_REPORTES AS
+create or replace PACKAGE     VENTA.PKG_SWEB_CRED_SOLI_REPORTES AS
 
 /*-----------------------------------------------------------------------------
     Nombre : SP_LIST_CRED_SOLI_VC_COD_OPERS
@@ -162,7 +162,6 @@ PROCEDURE SP_LIST_CRED_SOLI_CO(
         p_cod_soli_cred      IN vve_cred_soli.cod_soli_cred%TYPE,
         p_ind_nivel         IN vve_cred_soli_apro.ind_nivel%TYPE
     )RETURN VARCHAR2;  	
-
 
 /*-----------------------------------------------------------------------------
     Nombre : fn_ratio_cobertura

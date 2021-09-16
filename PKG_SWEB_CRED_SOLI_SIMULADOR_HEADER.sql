@@ -1,4 +1,4 @@
-create or replace PACKAGE   VENTA.PKG_SWEB_CRED_SOLI_SIMULADOR AS
+create or replace PACKAGE      VENTA.PKG_SWEB_CRED_SOLI_SIMULADOR AS
 
   /********************************************************************************
     Nombre:     SP_LIST_COMP_SEGU

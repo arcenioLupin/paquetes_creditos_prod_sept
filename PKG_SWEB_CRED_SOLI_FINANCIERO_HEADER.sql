@@ -1,4 +1,4 @@
-create or replace PACKAGE   VENTA.PKG_SWEB_CRED_SOLI_FINANCIERO AS
+create or replace PACKAGE    VENTA.PKG_SWEB_CRED_SOLI_FINANCIERO AS
 PROCEDURE sp_list_resumen
   (
       p_cod_solicitud     VARCHAR2,

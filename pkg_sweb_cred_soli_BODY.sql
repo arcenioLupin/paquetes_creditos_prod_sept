@@ -1,4 +1,4 @@
-create or replace PACKAGE BODY       VENTA.pkg_sweb_cred_soli AS
+create or replace PACKAGE BODY  VENTA.pkg_sweb_cred_soli AS
        --<Req. 87567 ES01 ID## EBARBOZA 23/03/2020>
        --< SE AGREGAN LAS VARIABLES p_num_tele_fijo_ejec,p_cod_sucursal,p_cod_area_venta
        -- p_cod_vendedor, p_cod_zona, p_dir_correo>
@@ -3935,7 +3935,7 @@ PROCEDURE sp_inse_cred_soli_aprob
         CLOSE c_facturas;
 
         OPEN p_ret_cursor_cabe FOR
-            select
+            SELECT DISTINCT
             -- SE MODIFICA CAMPOS PARA CHECK LIST MBARDALES 23/11/2020
             -- MODIFICACION PARA TITULO INICIAL DEL REPORTE
             (SELECT 'Créditos y Gestión Bancaria - '||z.des_zona
@@ -3949,7 +3949,7 @@ PROCEDURE sp_inse_cred_soli_aprob
             (SELECT UPPER(decode(nvl(ind_nu,'X'),'N', 'Nuevo','U','Usado','A','Nuevo/Usado','O','Ninguno'))
             FROM arlcop WHERE cod_oper = v_cod_ope_rel) as ind_nuevo_usado,
             -- MODIFICACION PARA NRO OPE / 2019
-            (select cod_oper_rel||'/2019' from vve_cred_soli where cod_soli_cred = p_cod_soli_cred and cod_empr = v_cod_empr) as ind_nro_ope,
+            (select cod_oper_rel||'/'||to_char(SYSDATE,'RRRR') from vve_cred_soli where cod_soli_cred = p_cod_soli_cred and cod_empr = v_cod_empr) as ind_nro_ope,
             --
             (select 'Persona ' || decode(cod_tipo_perso,'J','Jurídica','N','Natural') from gen_persona where cod_perso = s.cod_clie) as tipo_perso,
             DECODE(a.descrip,NULL,'-',a.descrip) as nom_empr,
@@ -3957,9 +3957,12 @@ PROCEDURE sp_inse_cred_soli_aprob
             DECODE(gp.nom_perso,NULL,'-',gp.nom_perso) as nom_perso,
             decode(gp.cod_tipo_perso, 'J', gp.num_ruc, gp.num_docu_iden) as num_docu,
             DECODE(dp.dir_domicilio,NULL,'-',dp.dir_domicilio) as dir_domicilio,
-            DECODE(dis.des_nombre,NULL,'-',dis.des_nombre) as distrito,
-            DECODE(pro.des_nombre,NULL,'-',pro.des_nombre) as provincia,
-            DECODE(dep.des_nombre,NULL,'-',dep.des_nombre) as departamento,
+						PKG_UBIGEO.GET_DIST(dp.cod_dpto,dp.cod_provincia, dp.cod_distrito ) as distrito,
+						PKG_UBIGEO.GET_PROV(dp.cod_dpto,dp.cod_provincia ) as provincia,
+						PKG_UBIGEO.GET_DEPA(dp.cod_dpto ) as departamento,
+            --DECODE(dis.des_nombre,NULL,'-',dis.des_nombre) as distrito,
+            --DECODE(pro.des_nombre,NULL,'-',pro.des_nombre) as provincia,
+            --DECODE(dep.des_nombre,NULL,'-',dep.des_nombre) as departamento,
             (SELECT nom_perso FROM gen_persona p, cxp_prov_giros g WHERE p.cod_perso = g.cod_prov AND g.cod_giro_perso = '012'
             AND cod_perso = s.cod_banco) as nom_banco,
             -- MODIFICACION PARA MARCA
@@ -4017,9 +4020,9 @@ PROCEDURE sp_inse_cred_soli_aprob
             left join arccct a on (s.cod_empr = a.no_cia) -- nombre de compañias
             left join gen_persona gp on (gp.cod_perso = s.cod_clie) -- personas
             left join gen_dir_perso dp on (dp.cod_perso = s.cod_clie) -- direcciones
-            inner join gen_mae_distrito dis on (dp.cod_distrito = dis.cod_id_distrito) -- distrito
+/*            inner join gen_mae_distrito dis on (dp.cod_distrito = dis.cod_id_distrito) -- distrito
             inner join gen_mae_provincia pro on (dp.cod_provincia = pro.cod_id_provincia) -- provincia
-            inner join gen_mae_departamento dep on (dp.cod_dpto = dep.cod_id_departamento) -- departamento
+            inner join gen_mae_departamento dep on (dp.cod_dpto = dep.cod_id_departamento) -- departamento*/
             inner join sis_mae_usuario mu on (s.cod_resp_fina = mu.txt_usuario)
             left join vve_cred_soli_isbs sbs on (s.cod_soli_cred = sbs.cod_soli_cred)
             where s.cod_soli_cred = p_cod_soli_cred and sg.ind_inactivo = 'N';
@@ -4027,22 +4030,25 @@ PROCEDURE sp_inse_cred_soli_aprob
         OPEN p_ret_cursor_aval FOR
             -- SE AGREGAN CAMPOS PARA LISTA DE AVALES
             select
-            (SELECT case when cod_estado_civil is not null and cod_estado_civil = 'C' THEN 'Sociedad Conyugal'
-            when cod_tipo_perso = 'J' then 'Persona Jurídica'
-            when cod_tipo_perso = 'N' then 'Persona Natural' END
-            FROM gen_persona WHERE cod_perso = v_cod_clie) as tipo_pers_aval,
+            (SELECT descripcion FROM vve_tabla_maes WHERE COD_GRUPO='105' AND valor_adic_1=ma.ind_tipo_persona) tipo_pers_aval,
             DECODE(txt_nomb_pers || ' ' || txt_apel_pate_pers || ' ' || txt_apel_mate_pers,NULL,'-',txt_nomb_pers || ' ' || txt_apel_pate_pers || ' ' || txt_apel_mate_pers)  as nom_pers_aval,
             DECODE(txt_doi,NULL,'-', txt_doi) AS txt_doi,
             DECODE(txt_direccion,NULL,'-',txt_direccion) AS txt_direccion,
-            DECODE(dis.des_nombre,NULL,'-',dis.des_nombre) as distrito,
-            DECODE(pro.des_nombre,NULL,'-',pro.des_nombre) as provincia,
-            DECODE(dep.des_nombre,NULL,'-',dep.des_nombre) as departamento,
+            (SELECT nom_ubigeo as descripcion
+                 FROM gen_ubigeo WHERE cod_dpto = ma.cod_departamento and cod_provincia = ma.cod_provincia
+                    and cod_distrito = ma.cod_distrito) distrito,
+
+           (SELECT nom_ubigeo as descripcion
+                  FROM gen_ubigeo WHERE cod_dpto = ma.cod_departamento and cod_provincia = ma.cod_provincia
+                    and cod_distrito = '00') provincia,
+
+            (SELECT nom_ubigeo as descripcion
+                  FROM gen_ubigeo WHERE cod_dpto = ma.cod_departamento and cod_provincia = '00'
+                    and cod_distrito = '00') departamento,
             DECODE(ma.val_monto_fianza,NULL,0,ma.val_monto_fianza) as val_monto_fianza
             from vve_cred_mae_aval ma
-            inner join gen_mae_distrito dis on (ma.cod_distrito = dis.cod_id_distrito) -- distrito
-            inner join gen_mae_provincia pro on (ma.cod_provincia = pro.cod_id_provincia) -- provincia
-            inner join gen_mae_departamento dep on (ma.cod_departamento = dep.cod_id_departamento) -- departamento
-            where cod_rela_aval = 'RAVAL01';
+						inner join vve_cred_soli_aval sl on (ma.cod_per_aval =  sl.cod_per_aval and sl.cod_soli_cred = p_cod_soli_cred )
+           where ma.cod_tipo_otor in ('OG03', 'OG02','OG01');
 
         OPEN p_ret_cursor_gmobi FOR
             select
@@ -4074,9 +4080,12 @@ PROCEDURE sp_inse_cred_soli_aprob
             SELECT
             decode(mg.ind_otor,'D','DEUDOR','FIADOR') as otorgante,
             DECODE(mg.txt_direccion,NULL,'-', mg.txt_direccion) AS txt_direccion,
-            DECODE(dis.des_nombre,NULL,'-', dis.des_nombre) as distrito,
+/*            DECODE(dis.des_nombre,NULL,'-', dis.des_nombre) as distrito,
             DECODE(pro.des_nombre,NULL,'-', pro.des_nombre) as provincia,
-            DECODE(dep.des_nombre,NULL,'-', dep.des_nombre) as departamento,
+            DECODE(dep.des_nombre,NULL,'-', dep.des_nombre) as departamento,*/
+            pkg_ubigeo_2.get_dist(mg.cod_departamento,mg.cod_provincia, mg.cod_distrito ) as distrito,
+            pkg_ubigeo_2.get_prov(mg.cod_departamento,mg.cod_provincia ) as provincia,
+            pkg_ubigeo_2.get_depa(mg.cod_departamento ) as departamento,
             DECODE(mg.val_mont_otor_hip,NULL,0, mg.val_mont_otor_hip) AS val_mont_otor_hip,
             DECODE(mg.val_realiz_gar,NULL,0, mg.val_realiz_gar) AS val_realiz_gar,
             DECODE(sg.cod_rang_gar,NULL,'-', sg.cod_rang_gar) AS cod_rang_gar,
@@ -4085,9 +4094,9 @@ PROCEDURE sp_inse_cred_soli_aprob
             vve_cred_soli s
             inner join vve_cred_soli_gara sg on (s.cod_soli_cred = sg.cod_soli_cred) -- garantia desde solicitud
             inner join vve_cred_maes_gara mg on (sg.cod_gara = mg.cod_garantia)
-            inner join gen_mae_distrito dis on (mg.cod_distrito = dis.cod_id_distrito) -- distrito
+/*            inner join gen_mae_distrito dis on (mg.cod_distrito = dis.cod_id_distrito) -- distrito
             inner join gen_mae_provincia pro on (mg.cod_provincia = pro.cod_id_provincia) -- provincia
-            inner join gen_mae_departamento dep on (mg.cod_departamento = dep.cod_id_departamento) -- departamento
+            inner join gen_mae_departamento dep on (mg.cod_departamento = dep.cod_id_departamento) -- departamento*/
             left join vve_credito_tipo_actividad ac on (mg.cod_tipo_actividad = ac.cod_tipo_actividad)
             where
             s.cod_soli_cred = p_cod_soli_cred and sg.ind_inactivo = 'N' and ind_tipo_garantia = 'H' and ind_adicional = 'S';
@@ -4146,13 +4155,16 @@ PROCEDURE sp_inse_cred_soli_aprob
             end) AS nom_garante,
             txt_doi AS doi_garante,
             (case when ma.ind_esta_civil is not null and ma.ind_esta_civil = 'C' THEN 'Sociedad Conyugal'
-            when ma.ind_esta_civil = 'J' then 'Persona Jurídica'
-            when ma.ind_esta_civil = 'N' then 'Persona Natural' END) AS tipo_pers_garante,
+            when ma.ind_tipo_persona = 'J' then 'Persona Jurídica'
+            when ma.ind_tipo_persona = 'N' then 'Persona Natural' END) AS tipo_pers_garante,
             (SELECT descripcion FROM vve_tabla_maes WHERE COD_GRUPO='104' AND valor_adic_1=ma.ind_esta_civil) AS des_estado_civil_garante,
             ma.txt_direccion AS direc_garante,
-            (select des_nombre FROM gen_mae_departamento WHERE cod_id_pais = ma.cod_pais and cod_id_departamento = ma.cod_departamento) AS dpto_garante,
+         /*   (select des_nombre FROM gen_mae_departamento WHERE cod_id_pais = ma.cod_pais and cod_id_departamento = ma.cod_departamento) AS dpto_garante,
             (select des_nombre FROM gen_mae_provincia WHERE cod_id_departamento = ma.cod_departamento and cod_id_provincia = ma.cod_provincia) AS prov_garante,
-            (select des_nombre FROM gen_mae_distrito WHERE cod_id_provincia = ma.cod_provincia and cod_id_distrito = ma.cod_distrito) AS dist_garante
+            (select des_nombre FROM gen_mae_distrito WHERE cod_id_provincia = ma.cod_provincia and cod_id_distrito = ma.cod_distrito) AS dist_garante*/
+            pkg_ubigeo_2.get_depa(ma.cod_departamento ) as dpto_garante,
+            pkg_ubigeo_2.get_prov(ma.cod_departamento,ma.cod_provincia ) as prov_garante,
+            pkg_ubigeo_2.GET_DIST(ma.cod_departamento,ma.cod_provincia, ma.cod_distrito ) as dist_garante
             from vve_cred_soli s,vve_cred_soli_gara sg, vve_cred_maes_gara g,vve_cred_mae_aval ma
             where s.cod_soli_cred = p_cod_soli_cred
             and s.cod_empr = v_cod_empr
@@ -4160,7 +4172,7 @@ PROCEDURE sp_inse_cred_soli_aprob
             and sg.cod_gara = g.cod_garantia
             and g.cod_pers_prop = ma.cod_per_aval
             and ma.cod_per_rel_aval is null
-            and ma.cod_tipo_otor in ('OG03', 'OG02','OG01') AND ROWNUM <= 1;
+            and ma.cod_tipo_otor in ('OG03', 'OG02','OG01');
 
 
         OPEN p_ret_cursor_info_ref_lea FOR
@@ -4253,7 +4265,7 @@ PROCEDURE sp_inse_cred_soli_aprob
         CLOSE c_facturas;
 
         OPEN p_ret_cursor_cabe FOR
-            select
+            SELECT DISTINCT
             -- SE MODIFICA CAMPOS PARA CHECK LIST MBARDALES 23/11/2020
             -- MODIFICACION PARA TITULO INICIAL DEL REPORTE
             (SELECT 'Créditos y Gestión Bancaria - '||z.des_zona
@@ -4267,7 +4279,7 @@ PROCEDURE sp_inse_cred_soli_aprob
             (SELECT UPPER(decode(nvl(ind_nu,'X'),'N', 'Nuevo','U','Usado','A','Nuevo/Usado','O','Ninguno'))
             FROM arlcop WHERE cod_oper = v_cod_ope_rel) as ind_nuevo_usado,
             -- MODIFICACION PARA NRO OPE / 2019
-            (select cod_oper_rel||'/2019' from vve_cred_soli where cod_soli_cred = p_cod_soli_cred and cod_empr = v_cod_empr) as ind_nro_ope,
+            (select cod_oper_rel||to_char(SYSDATE,'RRRR') from vve_cred_soli where cod_soli_cred = p_cod_soli_cred and cod_empr = v_cod_empr) as ind_nro_ope,
             --
             (select 'Persona ' || decode(cod_tipo_perso,'J','Jurídica','N','Natural') from gen_persona where cod_perso = s.cod_clie) as tipo_perso,
             DECODE(a.descrip,NULL,'-',a.descrip) as nom_empr,
@@ -4275,27 +4287,30 @@ PROCEDURE sp_inse_cred_soli_aprob
             DECODE(gp.nom_perso,NULL,'-',gp.nom_perso) as nom_perso,
             decode(gp.cod_tipo_perso, 'J', gp.num_ruc, gp.num_docu_iden) as num_docu,
             DECODE(dp.dir_domicilio,NULL,'-',dp.dir_domicilio) as dir_domicilio,
-            DECODE(dis.des_nombre,NULL,'-',dis.des_nombre) as distrito,
-            DECODE(pro.des_nombre,NULL,'-',pro.des_nombre) as provincia,
-            DECODE(dep.des_nombre,NULL,'-',dep.des_nombre) as departamento,
+            PKG_UBIGEO.GET_DIST(dp.cod_dpto,dp.cod_provincia, dp.cod_distrito ) as distrito,
+            PKG_UBIGEO.GET_PROV(dp.cod_dpto,dp.cod_provincia ) as provincia,
+            PKG_UBIGEO.GET_DEPA(dp.cod_dpto ) as departamento,
+            --DECODE(dis.des_nombre,NULL,'-',dis.des_nombre) as distrito,
+            --DECODE(pro.des_nombre,NULL,'-',pro.des_nombre) as provincia,
+            --DECODE(dep.des_nombre,NULL,'-',dep.des_nombre) as departamento,
             (SELECT nom_perso FROM gen_persona p, cxp_prov_giros g WHERE p.cod_perso = g.cod_prov AND g.cod_giro_perso = '012'
             AND cod_perso = s.cod_banco) as nom_banco,
             -- MODIFICACION PARA MARCA
             (select (select upper(nom_marca) from gen_marca where cod_marca = pd.cod_marca)
             from vve_proforma_veh_det pd, vve_cred_soli_prof sp, vve_cred_soli s
-            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh and  rownum <= 1 ) as txt_marca,
+            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh ) as txt_marca,
             -- MODIFICACION PARA TIPO DE VEH
             (select lpad(to_char(pd.can_veh),2,'0')||' '|| (select upper(des_familia_veh) from vve_familia_veh where cod_familia_veh = pd.cod_familia_veh)
             from vve_proforma_veh_det pd, vve_cred_soli_prof sp, vve_cred_soli s
-            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh and  rownum <= 1 ) as tipo_veh,
+            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh ) as tipo_veh,
             -- MODIFICACION PARA AÑO DE FAB
             (select (select to_char(ano_fabricacion_veh,'9999') from vve_pedido_veh where cod_cia = s.cod_empr and num_prof_veh = sp.num_prof_veh and  rownum <= 1)
             from vve_proforma_veh_det pd, vve_cred_soli_prof sp, vve_cred_soli s
-            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh and rownum <= 1) as val_ano_fab,
+            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh) as val_ano_fab,
             -- MODIFICACION PARA MODELO
             (select (select upper(des_baumuster) from vve_baumuster where cod_baumuster = pd.cod_baumuster and cod_marca = pd.cod_marca)
             from vve_proforma_veh_det pd, vve_cred_soli_prof sp, vve_cred_soli s
-            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh and rownum <= 1) as txt_modelo,
+            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh) as txt_modelo,
             -- MODIFICACION PARA CHASIS
             (select pe.num_chasis from vve_pedido_veh pe,vve_cred_soli_prof sp, vve_cred_soli s where s.cod_soli_cred = p_cod_soli_cred
             and s.cod_empr = v_cod_empr and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pe.num_prof_veh and  rownum <= 1 ) as nro_chasis,
@@ -4330,13 +4345,14 @@ PROCEDURE sp_inse_cred_soli_aprob
             vve_cred_soli s
             inner join vve_cred_soli_gara sg on (s.cod_soli_cred = sg.cod_soli_cred) -- garantia desde solicitud
             inner join vve_cred_maes_gara mg on (sg.cod_gara = mg.cod_garantia) -- maestro de garantias
+            inner join vve_pedido_veh p on (p.num_pedido_veh = mg.num_pedido_veh) -- pedidos
             left join vve_tabla_maes tc ON (s.tip_soli_cred = tc.cod_tipo AND tc.cod_grupo_rec = '86' AND tc.cod_tipo_rec = 'TC')
             left join arccct a on (s.cod_empr = a.no_cia) -- nombre de compañias
             left join gen_persona gp on (gp.cod_perso = s.cod_clie) -- personas
             left join gen_dir_perso dp on (dp.cod_perso = s.cod_clie) -- direcciones
-            inner join gen_mae_distrito dis on (dp.cod_distrito = dis.cod_id_distrito) -- distrito
+/*            inner join gen_mae_distrito dis on (dp.cod_distrito = dis.cod_id_distrito) -- distrito
             inner join gen_mae_provincia pro on (dp.cod_provincia = pro.cod_id_provincia) -- provincia
-            inner join gen_mae_departamento dep on (dp.cod_dpto = dep.cod_id_departamento) -- departamento
+            inner join gen_mae_departamento dep on (dp.cod_dpto = dep.cod_id_departamento) -- departamento*/
             inner join sis_mae_usuario mu on (s.cod_resp_fina = mu.txt_usuario)
             left join vve_cred_soli_isbs sbs on (s.cod_soli_cred = sbs.cod_soli_cred)
             where s.cod_soli_cred = p_cod_soli_cred and sg.ind_inactivo = 'N';
@@ -4344,22 +4360,25 @@ PROCEDURE sp_inse_cred_soli_aprob
         OPEN p_ret_cursor_aval FOR
             -- SE AGREGAN CAMPOS PARA LISTA DE AVALES
             select
-            (SELECT case when cod_estado_civil is not null and cod_estado_civil = 'C' THEN 'Sociedad Conyugal'
-            when cod_tipo_perso = 'J' then 'Persona Jurídica'
-            when cod_tipo_perso = 'N' then 'Persona Natural' END
-            FROM gen_persona WHERE cod_perso = v_cod_clie) as tipo_pers_aval,
+            (SELECT descripcion FROM vve_tabla_maes WHERE COD_GRUPO='105' AND valor_adic_1=ma.ind_tipo_persona) tipo_pers_aval,
             DECODE(txt_nomb_pers || ' ' || txt_apel_pate_pers || ' ' || txt_apel_mate_pers,NULL,'-',txt_nomb_pers || ' ' || txt_apel_pate_pers || ' ' || txt_apel_mate_pers)  as nom_pers_aval,
             DECODE(txt_doi,NULL,'-', txt_doi) AS txt_doi,
             DECODE(txt_direccion,NULL,'-',txt_direccion) AS txt_direccion,
-            DECODE(dis.des_nombre,NULL,'-',dis.des_nombre) as distrito,
-            DECODE(pro.des_nombre,NULL,'-',pro.des_nombre) as provincia,
-            DECODE(dep.des_nombre,NULL,'-',dep.des_nombre) as departamento,
+            (SELECT nom_ubigeo as descripcion
+                 FROM gen_ubigeo WHERE cod_dpto = ma.cod_departamento and cod_provincia = ma.cod_provincia
+                    and cod_distrito = ma.cod_distrito)distrito,
+
+            (SELECT nom_ubigeo as descripcion
+                  FROM gen_ubigeo WHERE cod_dpto = ma.cod_departamento and cod_provincia = ma.cod_provincia
+                    and cod_distrito = '00')provincia,
+
+            (SELECT nom_ubigeo as descripcion
+                  FROM gen_ubigeo WHERE cod_dpto = ma.cod_departamento and cod_provincia = '00'
+                    and cod_distrito = '00')departamento,
             DECODE(ma.val_monto_fianza,NULL,0,ma.val_monto_fianza) as val_monto_fianza
             from vve_cred_mae_aval ma
-            inner join gen_mae_distrito dis on (ma.cod_distrito = dis.cod_id_distrito) -- distrito
-            inner join gen_mae_provincia pro on (ma.cod_provincia = pro.cod_id_provincia) -- provincia
-            inner join gen_mae_departamento dep on (ma.cod_departamento = dep.cod_id_departamento) -- departamento
-            where cod_rela_aval = 'RAVAL01';
+            inner join vve_cred_soli_aval sl on (ma.cod_per_aval =  sl.cod_per_aval and sl.cod_soli_cred = p_cod_soli_cred )
+            where ma.cod_tipo_otor in ('OG03', 'OG02','OG01') AND ROWNUM <= 1;
 
         OPEN p_ret_cursor_gmobi FOR
             select
@@ -4391,9 +4410,12 @@ PROCEDURE sp_inse_cred_soli_aprob
             SELECT
             decode(mg.ind_otor,'D','DEUDOR','FIADOR') as otorgante,
             DECODE(mg.txt_direccion,NULL,'-', mg.txt_direccion) AS txt_direccion,
-            DECODE(dis.des_nombre,NULL,'-', dis.des_nombre) as distrito,
+/*            DECODE(dis.des_nombre,NULL,'-', dis.des_nombre) as distrito,
             DECODE(pro.des_nombre,NULL,'-', pro.des_nombre) as provincia,
-            DECODE(dep.des_nombre,NULL,'-', dep.des_nombre) as departamento,
+            DECODE(dep.des_nombre,NULL,'-', dep.des_nombre) as departamento,*/
+            pkg_ubigeo.get_dist(mg.cod_departamento,mg.cod_provincia, mg.cod_distrito ) as distrito,
+            pkg_ubigeo.get_prov(mg.cod_departamento,mg.cod_provincia ) as provincia,
+            pkg_ubigeo.get_depa(mg.cod_departamento ) as departamento,
             DECODE(mg.val_mont_otor_hip,NULL,0, mg.val_mont_otor_hip) AS val_mont_otor_hip,
             DECODE(mg.val_realiz_gar,NULL,0, mg.val_realiz_gar) AS val_realiz_gar,
             DECODE(sg.cod_rang_gar,NULL,'-', sg.cod_rang_gar) AS cod_rang_gar,
@@ -4402,9 +4424,9 @@ PROCEDURE sp_inse_cred_soli_aprob
             vve_cred_soli s
             inner join vve_cred_soli_gara sg on (s.cod_soli_cred = sg.cod_soli_cred) -- garantia desde solicitud
             inner join vve_cred_maes_gara mg on (sg.cod_gara = mg.cod_garantia)
-            inner join gen_mae_distrito dis on (mg.cod_distrito = dis.cod_id_distrito) -- distrito
+/*            inner join gen_mae_distrito dis on (mg.cod_distrito = dis.cod_id_distrito) -- distrito
             inner join gen_mae_provincia pro on (mg.cod_provincia = pro.cod_id_provincia) -- provincia
-            inner join gen_mae_departamento dep on (mg.cod_departamento = dep.cod_id_departamento) -- departamento
+            inner join gen_mae_departamento dep on (mg.cod_departamento = dep.cod_id_departamento) -- departamento*/
             left join vve_credito_tipo_actividad ac on (mg.cod_tipo_actividad = ac.cod_tipo_actividad)
             where
             s.cod_soli_cred = p_cod_soli_cred and sg.ind_inactivo = 'N' and ind_tipo_garantia = 'H' and ind_adicional = 'S';
@@ -4467,9 +4489,12 @@ PROCEDURE sp_inse_cred_soli_aprob
             when ma.ind_esta_civil = 'N' then 'Persona Natural' END) AS tipo_pers_garante,
             (SELECT descripcion FROM vve_tabla_maes WHERE COD_GRUPO='104' AND valor_adic_1=ma.ind_esta_civil) AS des_estado_civil_garante,
             ma.txt_direccion AS direc_garante,
-            (select des_nombre FROM gen_mae_departamento WHERE cod_id_pais = ma.cod_pais and cod_id_departamento = ma.cod_departamento) AS dpto_garante,
+/*            (select des_nombre FROM gen_mae_departamento WHERE cod_id_pais = ma.cod_pais and cod_id_departamento = ma.cod_departamento) AS dpto_garante,
             (select des_nombre FROM gen_mae_provincia WHERE cod_id_departamento = ma.cod_departamento and cod_id_provincia = ma.cod_provincia) AS prov_garante,
-            (select des_nombre FROM gen_mae_distrito WHERE cod_id_provincia = ma.cod_provincia and cod_id_distrito = ma.cod_distrito) AS dist_garante
+            (select des_nombre FROM gen_mae_distrito WHERE cod_id_provincia = ma.cod_provincia and cod_id_distrito = ma.cod_distrito) AS dist_garante*/
+            pkg_ubigeo.get_depa(ma.cod_departamento ) as dpto_garante,
+            pkg_ubigeo.get_prov(ma.cod_departamento,ma.cod_provincia ) as prov_garante,
+            pkg_ubigeo.get_dist(ma.cod_departamento,ma.cod_provincia, ma.cod_distrito ) as dist_garante
             from vve_cred_soli s,vve_cred_soli_gara sg, vve_cred_maes_gara g,vve_cred_mae_aval ma
             where s.cod_soli_cred = p_cod_soli_cred
             and s.cod_empr = v_cod_empr
@@ -4507,17 +4532,17 @@ PROCEDURE sp_inse_cred_soli_aprob
     EXCEPTION
         WHEN ve_error THEN
             p_ret_esta := 0;
-            pkg_sweb_mae_gene.sp_regi_rlog_erro('AUDI_ERROR', 'sp_list_formato_mutuo', p_cod_usua_sid, 'Error en la consulta', p_ret_mens
+            pkg_sweb_mae_gene.sp_regi_rlog_erro('AUDI_ERROR', 'SP_LIST_FORMATO_RECON_DEUDA', p_cod_usua_sid, 'Error en la consulta', p_ret_mens
             , NULL);
         WHEN OTHERS THEN
             p_ret_esta := -1;
-            p_ret_mens := 'sp_list_formato_mutuo:' || sqlerrm;
-            pkg_sweb_mae_gene.sp_regi_rlog_erro('AUDI_ERROR', 'sp_list_formato_mutuo', p_cod_usua_sid, 'Error en la consulta', p_ret_mens
+            p_ret_mens := 'SP_LIST_FORMATO_RECON_DEUDA:' || sqlerrm;
+            pkg_sweb_mae_gene.sp_regi_rlog_erro('AUDI_ERROR', 'SP_LIST_FORMATO_RECON_DEUDA', p_cod_usua_sid, 'Error en la consulta', p_ret_mens
             , NULL);
-    END sp_list_formato_mutuo;
+     END sp_list_formato_mutuo;
 
  PROCEDURE sp_list_formato_leasing
-  (
+   (
     p_cod_soli_cred             IN                vve_cred_soli.cod_soli_cred%TYPE,
     p_cod_usua_sid              IN                sistemas.usuarios.co_usuario%TYPE,
     p_ret_cursor_cabe           OUT               SYS_REFCURSOR,
@@ -4569,7 +4594,7 @@ PROCEDURE sp_inse_cred_soli_aprob
         CLOSE c_facturas;
 
         OPEN p_ret_cursor_cabe FOR
-            select
+            SELECT DISTINCT
             -- SE MODIFICA CAMPOS PARA CHECK LIST MBARDALES 23/11/2020
             -- MODIFICACION PARA TITULO INICIAL DEL REPORTE
             (SELECT 'Créditos y Gestión Bancaria - '||z.des_zona
@@ -4583,7 +4608,7 @@ PROCEDURE sp_inse_cred_soli_aprob
             (SELECT UPPER(decode(nvl(ind_nu,'X'),'N', 'Nuevo','U','Usado','A','Nuevo/Usado','O','Ninguno'))
             FROM arlcop WHERE cod_oper = v_cod_ope_rel) as ind_nuevo_usado,
             -- MODIFICACION PARA NRO OPE / 2019
-            (select cod_oper_rel||'/2019' from vve_cred_soli where cod_soli_cred = p_cod_soli_cred and cod_empr = v_cod_empr) as ind_nro_ope,
+            (select cod_oper_rel||to_char(SYSDATE,'RRRR') from vve_cred_soli where cod_soli_cred = p_cod_soli_cred and cod_empr = v_cod_empr) as ind_nro_ope,
             --
             (select 'Persona ' || decode(cod_tipo_perso,'J','Jurídica','N','Natural') from gen_persona where cod_perso = s.cod_clie) as tipo_perso,
             DECODE(a.descrip,NULL,'-',a.descrip) as nom_empr,
@@ -4591,27 +4616,30 @@ PROCEDURE sp_inse_cred_soli_aprob
             DECODE(gp.nom_perso,NULL,'-',gp.nom_perso) as nom_perso,
             decode(gp.cod_tipo_perso, 'J', gp.num_ruc, gp.num_docu_iden) as num_docu,
             DECODE(dp.dir_domicilio,NULL,'-',dp.dir_domicilio) as dir_domicilio,
-            DECODE(dis.des_nombre,NULL,'-',dis.des_nombre) as distrito,
-            DECODE(pro.des_nombre,NULL,'-',pro.des_nombre) as provincia,
-            DECODE(dep.des_nombre,NULL,'-',dep.des_nombre) as departamento,
+            PKG_UBIGEO.GET_DIST(dp.cod_dpto,dp.cod_provincia, dp.cod_distrito ) as distrito,
+            PKG_UBIGEO.GET_PROV(dp.cod_dpto,dp.cod_provincia ) as provincia,
+            PKG_UBIGEO.GET_DEPA(dp.cod_dpto ) as departamento,
+            --DECODE(dis.des_nombre,NULL,'-',dis.des_nombre) as distrito,
+            --DECODE(pro.des_nombre,NULL,'-',pro.des_nombre) as provincia,
+            --DECODE(dep.des_nombre,NULL,'-',dep.des_nombre) as departamento,
             (SELECT nom_perso FROM gen_persona p, cxp_prov_giros g WHERE p.cod_perso = g.cod_prov AND g.cod_giro_perso = '012'
             AND cod_perso = s.cod_banco) as nom_banco,
-             -- MODIFICACION PARA MARCA
+            -- MODIFICACION PARA MARCA
             (select (select upper(nom_marca) from gen_marca where cod_marca = pd.cod_marca)
             from vve_proforma_veh_det pd, vve_cred_soli_prof sp, vve_cred_soli s
-            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh and  rownum <= 1 ) as txt_marca,
+            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh ) as txt_marca,
             -- MODIFICACION PARA TIPO DE VEH
             (select lpad(to_char(pd.can_veh),2,'0')||' '|| (select upper(des_familia_veh) from vve_familia_veh where cod_familia_veh = pd.cod_familia_veh)
             from vve_proforma_veh_det pd, vve_cred_soli_prof sp, vve_cred_soli s
-            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh and  rownum <= 1 ) as tipo_veh,
+            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh ) as tipo_veh,
             -- MODIFICACION PARA AÑO DE FAB
             (select (select to_char(ano_fabricacion_veh,'9999') from vve_pedido_veh where cod_cia = s.cod_empr and num_prof_veh = sp.num_prof_veh and  rownum <= 1)
             from vve_proforma_veh_det pd, vve_cred_soli_prof sp, vve_cred_soli s
-            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh and rownum <= 1) as val_ano_fab,
+            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh) as val_ano_fab,
             -- MODIFICACION PARA MODELO
             (select (select upper(des_baumuster) from vve_baumuster where cod_baumuster = pd.cod_baumuster and cod_marca = pd.cod_marca)
             from vve_proforma_veh_det pd, vve_cred_soli_prof sp, vve_cred_soli s
-            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh and rownum <= 1) as txt_modelo,
+            where s.cod_soli_cred = p_cod_soli_cred and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pd.num_prof_veh) as txt_modelo,
             -- MODIFICACION PARA CHASIS
             (select pe.num_chasis from vve_pedido_veh pe,vve_cred_soli_prof sp, vve_cred_soli s where s.cod_soli_cred = p_cod_soli_cred
             and s.cod_empr = v_cod_empr and sp.cod_soli_cred = s.cod_soli_cred and sp.num_prof_veh = pe.num_prof_veh and  rownum <= 1 ) as nro_chasis,
@@ -4646,13 +4674,14 @@ PROCEDURE sp_inse_cred_soli_aprob
             vve_cred_soli s
             inner join vve_cred_soli_gara sg on (s.cod_soli_cred = sg.cod_soli_cred) -- garantia desde solicitud
             inner join vve_cred_maes_gara mg on (sg.cod_gara = mg.cod_garantia) -- maestro de garantias
+            inner join vve_pedido_veh p on (p.num_pedido_veh = mg.num_pedido_veh) -- pedidos
             left join vve_tabla_maes tc ON (s.tip_soli_cred = tc.cod_tipo AND tc.cod_grupo_rec = '86' AND tc.cod_tipo_rec = 'TC')
             left join arccct a on (s.cod_empr = a.no_cia) -- nombre de compañias
             left join gen_persona gp on (gp.cod_perso = s.cod_clie) -- personas
             left join gen_dir_perso dp on (dp.cod_perso = s.cod_clie) -- direcciones
-            inner join gen_mae_distrito dis on (dp.cod_distrito = dis.cod_id_distrito) -- distrito
+/*            inner join gen_mae_distrito dis on (dp.cod_distrito = dis.cod_id_distrito) -- distrito
             inner join gen_mae_provincia pro on (dp.cod_provincia = pro.cod_id_provincia) -- provincia
-            inner join gen_mae_departamento dep on (dp.cod_dpto = dep.cod_id_departamento) -- departamento
+            inner join gen_mae_departamento dep on (dp.cod_dpto = dep.cod_id_departamento) -- departamento*/
             inner join sis_mae_usuario mu on (s.cod_resp_fina = mu.txt_usuario)
             left join vve_cred_soli_isbs sbs on (s.cod_soli_cred = sbs.cod_soli_cred)
             where s.cod_soli_cred = p_cod_soli_cred and sg.ind_inactivo = 'N';
@@ -4660,22 +4689,25 @@ PROCEDURE sp_inse_cred_soli_aprob
         OPEN p_ret_cursor_aval FOR
             -- SE AGREGAN CAMPOS PARA LISTA DE AVALES
             select
-            (SELECT case when cod_estado_civil is not null and cod_estado_civil = 'C' THEN 'Sociedad Conyugal'
-            when cod_tipo_perso = 'J' then 'Persona Jurídica'
-            when cod_tipo_perso = 'N' then 'Persona Natural' END
-            FROM gen_persona WHERE cod_perso = v_cod_clie) as tipo_pers_aval,
+            (SELECT descripcion FROM vve_tabla_maes WHERE COD_GRUPO='105' AND valor_adic_1=ma.ind_tipo_persona) as tipo_pers_aval,
             DECODE(txt_nomb_pers || ' ' || txt_apel_pate_pers || ' ' || txt_apel_mate_pers,NULL,'-',txt_nomb_pers || ' ' || txt_apel_pate_pers || ' ' || txt_apel_mate_pers)  as nom_pers_aval,
             DECODE(txt_doi,NULL,'-', txt_doi) AS txt_doi,
             DECODE(txt_direccion,NULL,'-',txt_direccion) AS txt_direccion,
-            DECODE(dis.des_nombre,NULL,'-',dis.des_nombre) as distrito,
-            DECODE(pro.des_nombre,NULL,'-',pro.des_nombre) as provincia,
-            DECODE(dep.des_nombre,NULL,'-',dep.des_nombre) as departamento,
+            (SELECT nom_ubigeo as descripcion
+                 FROM gen_ubigeo WHERE cod_dpto = ma.cod_departamento and cod_provincia = ma.cod_provincia
+                    and cod_distrito = ma.cod_distrito)distrito,
+
+            (SELECT nom_ubigeo as descripcion
+                  FROM gen_ubigeo WHERE cod_dpto = ma.cod_departamento and cod_provincia = ma.cod_provincia
+                    and cod_distrito = '00')provincia,
+
+            (SELECT nom_ubigeo as descripcion
+                  FROM gen_ubigeo WHERE cod_dpto = ma.cod_departamento and cod_provincia = '00'
+                    and cod_distrito = '00')departamento,
             DECODE(ma.val_monto_fianza,NULL,0,ma.val_monto_fianza) as val_monto_fianza
             from vve_cred_mae_aval ma
-            inner join gen_mae_distrito dis on (ma.cod_distrito = dis.cod_id_distrito) -- distrito
-            inner join gen_mae_provincia pro on (ma.cod_provincia = pro.cod_id_provincia) -- provincia
-            inner join gen_mae_departamento dep on (ma.cod_departamento = dep.cod_id_departamento) -- departamento
-            where cod_rela_aval = 'RAVAL01';
+            inner join vve_cred_soli_aval sl on (ma.cod_per_aval =  sl.cod_per_aval and sl.cod_soli_cred = p_cod_soli_cred )
+             where ma.cod_tipo_otor in ('OG03', 'OG02','OG01') AND ROWNUM <= 1;
 
         OPEN p_ret_cursor_gmobi FOR
             select
@@ -4707,9 +4739,12 @@ PROCEDURE sp_inse_cred_soli_aprob
             SELECT
             decode(mg.ind_otor,'D','DEUDOR','FIADOR') as otorgante,
             DECODE(mg.txt_direccion,NULL,'-', mg.txt_direccion) AS txt_direccion,
-            DECODE(dis.des_nombre,NULL,'-', dis.des_nombre) as distrito,
+/*            DECODE(dis.des_nombre,NULL,'-', dis.des_nombre) as distrito,
             DECODE(pro.des_nombre,NULL,'-', pro.des_nombre) as provincia,
-            DECODE(dep.des_nombre,NULL,'-', dep.des_nombre) as departamento,
+            DECODE(dep.des_nombre,NULL,'-', dep.des_nombre) as departamento,*/
+            pkg_ubigeo.get_dist(mg.cod_departamento,mg.cod_provincia, mg.cod_distrito ) as distrito,
+            pkg_ubigeo.get_prov(mg.cod_departamento,mg.cod_provincia ) as provincia,
+            pkg_ubigeo.get_depa(mg.cod_departamento ) as departamento,
             DECODE(mg.val_mont_otor_hip,NULL,0, mg.val_mont_otor_hip) AS val_mont_otor_hip,
             DECODE(mg.val_realiz_gar,NULL,0, mg.val_realiz_gar) AS val_realiz_gar,
             DECODE(sg.cod_rang_gar,NULL,'-', sg.cod_rang_gar) AS cod_rang_gar,
@@ -4718,9 +4753,9 @@ PROCEDURE sp_inse_cred_soli_aprob
             vve_cred_soli s
             inner join vve_cred_soli_gara sg on (s.cod_soli_cred = sg.cod_soli_cred) -- garantia desde solicitud
             inner join vve_cred_maes_gara mg on (sg.cod_gara = mg.cod_garantia)
-            inner join gen_mae_distrito dis on (mg.cod_distrito = dis.cod_id_distrito) -- distrito
+/*            inner join gen_mae_distrito dis on (mg.cod_distrito = dis.cod_id_distrito) -- distrito
             inner join gen_mae_provincia pro on (mg.cod_provincia = pro.cod_id_provincia) -- provincia
-            inner join gen_mae_departamento dep on (mg.cod_departamento = dep.cod_id_departamento) -- departamento
+            inner join gen_mae_departamento dep on (mg.cod_departamento = dep.cod_id_departamento) -- departamento*/
             left join vve_credito_tipo_actividad ac on (mg.cod_tipo_actividad = ac.cod_tipo_actividad)
             where
             s.cod_soli_cred = p_cod_soli_cred and sg.ind_inactivo = 'N' and ind_tipo_garantia = 'H' and ind_adicional = 'S';
@@ -4783,9 +4818,12 @@ PROCEDURE sp_inse_cred_soli_aprob
             when ma.ind_esta_civil = 'N' then 'Persona Natural' END) AS tipo_pers_garante,
             (SELECT descripcion FROM vve_tabla_maes WHERE COD_GRUPO='104' AND valor_adic_1=ma.ind_esta_civil) AS des_estado_civil_garante,
             ma.txt_direccion AS direc_garante,
-            (select des_nombre FROM gen_mae_departamento WHERE cod_id_pais = ma.cod_pais and cod_id_departamento = ma.cod_departamento) AS dpto_garante,
+/*            (select des_nombre FROM gen_mae_departamento WHERE cod_id_pais = ma.cod_pais and cod_id_departamento = ma.cod_departamento) AS dpto_garante,
             (select des_nombre FROM gen_mae_provincia WHERE cod_id_departamento = ma.cod_departamento and cod_id_provincia = ma.cod_provincia) AS prov_garante,
-            (select des_nombre FROM gen_mae_distrito WHERE cod_id_provincia = ma.cod_provincia and cod_id_distrito = ma.cod_distrito) AS dist_garante
+            (select des_nombre FROM gen_mae_distrito WHERE cod_id_provincia = ma.cod_provincia and cod_id_distrito = ma.cod_distrito) AS dist_garante*/
+            pkg_ubigeo.get_depa(ma.cod_departamento ) as dpto_garante,
+            pkg_ubigeo.get_prov(ma.cod_departamento,ma.cod_provincia ) as prov_garante,
+            pkg_ubigeo.get_dist(ma.cod_departamento,ma.cod_provincia, ma.cod_distrito ) as dist_garante
             from vve_cred_soli s,vve_cred_soli_gara sg, vve_cred_maes_gara g,vve_cred_mae_aval ma
             where s.cod_soli_cred = p_cod_soli_cred
             and s.cod_empr = v_cod_empr
@@ -4823,14 +4861,14 @@ PROCEDURE sp_inse_cred_soli_aprob
     EXCEPTION
         WHEN ve_error THEN
             p_ret_esta := 0;
-            pkg_sweb_mae_gene.sp_regi_rlog_erro('AUDI_ERROR', 'sp_list_formato_leasing', p_cod_usua_sid, 'Error en la consulta', p_ret_mens
+            pkg_sweb_mae_gene.sp_regi_rlog_erro('AUDI_ERROR', 'SP_LIST_FORMATO_RECON_DEUDA', p_cod_usua_sid, 'Error en la consulta', p_ret_mens
             , NULL);
         WHEN OTHERS THEN
             p_ret_esta := -1;
-            p_ret_mens := 'sp_list_formato_leasing:' || sqlerrm;
-            pkg_sweb_mae_gene.sp_regi_rlog_erro('AUDI_ERROR', 'sp_list_formato_leasing', p_cod_usua_sid, 'Error en la consulta', p_ret_mens
+            p_ret_mens := 'SP_LIST_FORMATO_RECON_DEUDA:' || sqlerrm;
+            pkg_sweb_mae_gene.sp_regi_rlog_erro('AUDI_ERROR', 'SP_LIST_FORMATO_RECON_DEUDA', p_cod_usua_sid, 'Error en la consulta', p_ret_mens
             , NULL);
-    END sp_list_formato_leasing;
+     END sp_list_formato_leasing;
 
   PROCEDURE sp_list_perm_usua_solcre
   (

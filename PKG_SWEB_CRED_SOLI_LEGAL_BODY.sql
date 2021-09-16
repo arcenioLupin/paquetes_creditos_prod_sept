@@ -1,4 +1,4 @@
-create or replace PACKAGE BODY   VENTA.PKG_SWEB_CRED_SOLI_LEGAL IS
+create or replace PACKAGE BODY     VENTA.PKG_SWEB_CRED_SOLI_LEGAL IS
 
 /*-----------------------------------------------------------------------------
     Nombre : sp_listar_sol_legal
@@ -172,6 +172,12 @@ create or replace PACKAGE BODY   VENTA.PKG_SWEB_CRED_SOLI_LEGAL IS
             and   mg.ind_tipo_garantia = decode(p_ord_titdoc,5,'M',4,'H');
 
             OPEN p_ret_cursor FOR
+              --<I E2.1 ID 224 LR 17.01.2020>
+              /*SELECT cod_docleg,descripcion,'N' ind_oblig 
+              FROM gen_documento_legal
+              WHERE cod_titdoc = p_ord_titdoc;
+              p_ret_esta := 1;
+              p_ret_mens := 'La consulta se realizó de manera exitosa';*/
               SELECT  l.cod_docleg,l.descripcion,decode(v_cant_gara,0,'N',d.ind_oblig_gral) ind_oblig 
               FROM    gen_documento_legal l, vve_cred_mae_docu d
               WHERE   l.ind_inactivo='N' 
@@ -999,7 +1005,7 @@ Log de Cambios
           p_ret_mens := 'SP_LISTAR_OPELEGAL_SOLCRE:' || SQLERRM;
   END;
 
-/*-----------------------------------------------------------------------------
+               /*-----------------------------------------------------------------------------
 Nombre : SP_LISTAR_PERFACULTADA_SOLCRE
 Proposito : Listar las persona facultadas de la solicitud de crédito
 Referencias : 
@@ -1876,6 +1882,17 @@ Log de Cambios
   )AS
   BEGIN
     open p_ret_cursor for
+        /*
+        SELECT alcv.nom_aval nom_fiador,
+        CASE (SELECT instr(alcv.nom_aval,'/')FROM dual) WHEN 0 THEN 'I' ELSE 'C' END tipo_fianza,
+        'D' tipo_doc,
+        CASE (SELECT instr(alcv.nom_aval,'/')FROM dual) WHEN 0 THEN 'I' ELSE 'C' END parentesco,
+        alcv.le doi,
+        alcv.cod_oper
+        FROM lxc.arlcav alcv
+        INNER JOIN vve_cred_soli csl ON
+        alcv.cod_oper = csl.cod_oper_rel
+        WHERE csl.cod_solcre_legal = p_cod_solcre;*/
        SELECT CASE  
            WHEN (select ma2.cod_rela_aval from vve_cred_mae_aval ma2 where ma2.cod_per_rel_aval = ma.cod_per_aval)is null THEN 'I' 
            WHEN (select ma2.cod_rela_aval from vve_cred_mae_aval ma2 where ma2.cod_per_rel_aval = ma.cod_per_aval) = 'RAVAL01' THEN 'T' 
@@ -1982,7 +1999,26 @@ Log de Cambios
     v_cod_soli_cred VARCHAR(25);
   BEGIN
 
-    open p_ret_cursor for           
+      /*SELECT cod_soli_cred  INTO v_cod_soli_cred
+      FROM vve_cred_soli
+      WHERE cod_solcre_legal =p_cod_solcre;*/
+
+    open p_ret_cursor for
+       /* SELECT distinct l.cod_docleg,l.descripcion,f.ind_oblig,f.txt_ruta_doc
+            FROM gen_documento_legal l,vve_cred_mae_aval_docu f, vve_cred_mae_docu d
+            WHERE l.ind_inactivo='N'
+            and l.cod_titdoc in
+            (select cod_titdoc
+            from gen_titulo_documento a
+            where ord_titdoc=6)
+            and l.cod_docleg = d.cod_docleg
+            and f.cod_docu_eval = d.cod_docu_eval
+            and d.ind_tipo_docu = 'AN'
+            and f.cod_per_aval = '00001022'
+            and f.cod_soli_cred = v_cod_soli_cred
+            order by cod_docleg;
+            */
+
        SELECT a.cod_tipope,a.cod_opeleg, a.descripcion
         FROM gen_operacion_legal a,gen_tipo_operacion b,
         gen_plantilla_operacion c,gen_estructura_operacion d, gen_solicitud_credito e
@@ -1992,6 +2028,7 @@ Log de Cambios
         AND e.cod_estope=d.cod_estope
         AND b.cod_natope ='FSN'
         AND e.cod_solcre=p_cod_solcre;
+        --and a.cod_tipope=p_cod_tipope;
 
         p_ret_mens := 'La consulta se realizó correctamente!';
         p_ret_esta := 1;
@@ -2297,6 +2334,16 @@ Log de Cambios
                tc.descripcion TIP_SOLI_CRED,
                tc.cod_tipo cod_tipo_cred
 
+               /*
+               'Recon. de Deuda' TIP_SOLI_CRED,
+               'TC01' cod_tipo_cred
+               */
+               /*
+               'Recon. de Deuda Leasing' TIP_SOLI_CRED,
+               'TC02' cod_tipo_cred
+
+                'Crédito Mutuo' TIP_SOLI_CRED,
+                'TC03' cod_tipo_cred*/
         FROM vve_cred_soli s,vve_tabla_maes tc
         WHERE 
               (s.cod_oper_rel is null or s.cod_oper_rel like '%'||p_cod_oper_rel||'%') 
@@ -2522,16 +2569,37 @@ Log de Cambios
     p_ret_esta      OUT NUMBER,
     p_ret_mens      OUT VARCHAR2
   ) AS
+	
+	  v_tip_soli_cred VARCHAR2(4):= NULL;
   BEGIN
-    OPEN p_ret_cursor FOR
-         SELECT distinct(substr(aff.no_factu,1,4)||'-'||substr(aff.no_factu,5,length(aff.no_factu)-4)) no_docu,
-                to_char(aff.fecha, 'DD/MM/YYYY') as fecha, -- MBARDALES CORRECCION PARA CONTRATOS ANEXOS RD MBARDALES
-                aff.moneda,aff.val_pre_docu monto 
-         FROM ARFAFE aff
-          INNER JOIN vve_cred_maes_gara cmg ON aff.no_orden_desc = cmg.num_pedido_veh
-          INNER JOIN  vve_cred_soli_gara csg ON csg.cod_gara = cmg.cod_garantia 
-         WHERE
-              csg.cod_soli_cred = p_cod_soli_cred;
+    SELECT tip_soli_cred 
+		INTO v_tip_soli_cred 
+		FROM vve_cred_soli 
+		WHERE cod_soli_cred = p_cod_soli_cred;
+
+    IF (v_tip_soli_cred = 'TC01') THEN
+			OPEN p_ret_cursor FOR
+        SELECT distinct(substr(aff.no_factu,1,4)||'-'||substr(aff.no_factu,5,length(aff.no_factu)-4)) no_docu,
+              to_char(aff.fecha, 'DD/MM/YYYY') as fecha, -- MBARDALES CORRECCION PARA CONTRATOS ANEXOS RD MBARDALES
+              aff.moneda,aff.val_pre_docu monto 
+        FROM ARFAFE aff
+        INNER JOIN vve_cred_maes_gara cmg ON aff.no_orden_desc = cmg.num_pedido_veh
+        INNER JOIN  vve_cred_soli_gara csg ON csg.cod_gara = cmg.cod_garantia 
+        WHERE  csg.cod_soli_cred = p_cod_soli_cred;
+					
+    ELSE 
+			
+      OPEN p_ret_cursor FOR
+        SELECT distinct(substr(aff.no_factu,1,4)||'-'||substr(aff.no_factu,5,length(aff.no_factu)-4)) no_docu,
+              to_char(aff.fecha, 'DD/MM/YYYY') as fecha, 
+              aff.moneda,aff.val_pre_docu monto 
+        FROM ARFAFE aff, vve_cred_soli_pedi_veh sp
+        WHERE  aff.no_orden_desc = sp.num_pedido_veh
+          AND  nvl(sp.ind_inactivo,'N' ) = 'N'
+          AND  sp.cod_soli_cred = p_cod_soli_cred;
+				
+    END IF;
+		
 
         p_ret_esta := 1;
         p_ret_mens := 'La consulta se realizó de manera exitosa';
@@ -2550,6 +2618,7 @@ Log de Cambios
       Fecha        Autor         Descripcion
      10/02/2020   EBARBOZA  
      26/11/2020   AVILCA          CORRECCIONES COD MONEDA
+		 14/09/2021   ASALASM         Correcion Formato de Anexo ( Credito Mutuo)
  ----------------------------------------------------------------------------*/ 
   PROCEDURE SP_LISTAR_ANEXOS_PAGOS
   (
@@ -2558,19 +2627,50 @@ Log de Cambios
     p_ret_esta     OUT NUMBER,
     p_ret_mens     OUT VARCHAR2
   ) AS
+
+  --<I-PROY CREDITO F2 ASALASM>
+	  v_tip_soli_cred VARCHAR2(4):= NULL;
+		
   BEGIN
-    OPEN p_ret_cursor FOR
+		
+    SELECT tip_soli_cred 
+		INTO v_tip_soli_cred 
+		FROM vve_cred_soli 
+		WHERE cod_soli_cred = p_cod_soli_cred;	
+		
+    IF v_tip_soli_cred = 'TC03' THEN
+			OPEN p_ret_cursor FOR
+				SELECT 
+								'...' as desBcoMovi,
+								'...' as desMovi,
+								'...' as fecMovi,
+								gm.des_moneda as nomeMoneda,
+								gm.des_larga_moneda as desLargaMoneda,
+								csm.val_mon_fin as montoMovi,
+								'...' as tipoDocMovi,
+								'...' as nroDocMovi,
+								'...' as desCiaCargo,
+								'...' as desFecMovi,
+								letra.letras(pkg_factu_elect.obte_valo_oper('XXX',csm.val_mon_fin),'') as fMontoTexto
+				FROM vve_cred_soli csm
+				inner join Gen_moneda gm on gm.cod_moneda = case csm.cod_mone_soli when 'DOL' THEN '1' ELSE '2' END
+				 where csm.cod_soli_cred = p_cod_soli_cred; 
+  --<I-PROY CREDITO F2 ASALASM>	
+		ELSE
+			OPEN p_ret_cursor FOR
         select 
         gp.nom_perso as desBcoMovi,
         -- MBARDALES CONTRATO ANEXOS 
+				--<I-PROY CREDITO F2 ASALASM>
         case 
-        when mtm.cod_tipo_mov = 1 then mtm.txt_desc_tipo_movi || ' / 001' 
-        when mtm.cod_tipo_mov = 2 then mtm.txt_desc_tipo_movi || ' / 002'
-        when mtm.cod_tipo_mov = 3 then mtm.txt_desc_tipo_movi || ' / 003'
-        when mtm.cod_tipo_mov = 4 then mtm.txt_desc_tipo_movi || ' / 004'
-        when mtm.cod_tipo_mov = 5 then mtm.txt_desc_tipo_movi || ' / 005'
-        when mtm.cod_tipo_mov = 6 then mtm.txt_desc_tipo_movi || ' / 006'
-        when mtm.cod_tipo_mov = 7 then mtm.txt_desc_tipo_movi || ' / 007'
+        when mtm.cod_tipo_mov = 1 then mtm.txt_desc_tipo_movi --|| ' / 001'
+        when mtm.cod_tipo_mov = 2 then mtm.txt_desc_tipo_movi --|| ' / 002'
+        when mtm.cod_tipo_mov = 3 then mtm.txt_desc_tipo_movi --|| ' / 003'
+        when mtm.cod_tipo_mov = 4 then mtm.txt_desc_tipo_movi --|| ' / 004'
+        when mtm.cod_tipo_mov = 5 then mtm.txt_desc_tipo_movi --|| ' / 005'
+        when mtm.cod_tipo_mov = 6 then mtm.txt_desc_tipo_movi --|| ' / 006'
+        when mtm.cod_tipo_mov = 7 then mtm.txt_desc_tipo_movi --|| ' / 007'
+				--<F-PROY CREDITO F2 ASALASM>	
         else mtm.txt_desc_tipo_movi
         end as desMovi,
         to_char(csm.fec_movi_pago,'dd/mm/yyyy') as fecMovi,
@@ -2593,7 +2693,9 @@ Log de Cambios
         where csm.cod_soli_cred = p_cod_soli_cred
         group by gp.nom_perso,mtm.cod_tipo_mov,mtm.txt_desc_tipo_movi,csm.fec_movi_pago,
         gm.des_moneda,gm.des_larga_moneda,csm.val_monto_pago,
-        csm.ind_tipo_docu,csm.txt_nro_documento,arc.nombre,csm.fec_movi_pago;      
+        csm.ind_tipo_docu,csm.txt_nro_documento,arc.nombre,csm.fec_movi_pago;   
+				
+		END IF;			
         p_ret_esta := 1;
         p_ret_mens := 'La consulta se realizó de manera exitosa';
     EXCEPTION
@@ -2611,6 +2713,7 @@ Log de Cambios
     Log de Cambios 
       Fecha        Autor         Descripcion
      10/02/2020   EBARBOZA  
+		 11/09/2021   ASALASM         Se modifico para que se pudiera listar todas las garantias
  ----------------------------------------------------------------------------*/ 
   PROCEDURE SP_LISTAR_GARANTIAS
   (
@@ -2620,65 +2723,200 @@ Log de Cambios
     p_ret_esta        OUT NUMBER,
     p_ret_mens        OUT VARCHAR2
   ) AS
-  v_tip_soli_cred VARCHAR2(4):= '';
+  
+--<I-PROY CRED. ASALASM >
+	v_tip_soli_cred VARCHAR2(4):= '';
   v_ind_tipo_gara VARCHAR2(1):='';
 
   BEGIN
 
-    SELECT tip_soli_cred INTO v_tip_soli_cred FROM vve_cred_soli WHERE cod_soli_cred = p_cod_soli_cred;
+    SELECT tip_soli_cred 
+		INTO v_tip_soli_cred 
+		FROM vve_cred_soli 
+		WHERE cod_soli_cred = p_cod_soli_cred;
+		
+    IF v_tip_soli_cred = 'TC01' THEN
 
-    IF (v_tip_soli_cred = 'TC02') THEN
-      v_ind_tipo_gara := 'S';
-    ELSE 
-      v_ind_tipo_gara := 'N';
-    END IF;
 
-    OPEN p_ret_cursor FOR
-        select 
-        count(1) as item, 
-        decode(gp.nom_perso,null,'-',gp.nom_perso) as cliente,
-        decode(cmg.txt_marca,null,'-',cmg.txt_marca) as marca,
-        decode(cmg.txt_modelo,null,'-',cmg.txt_modelo) as modelo,
-        decode(vtv.des_tipo_veh,null,'-',vtv.des_tipo_veh) as tipoVeh,
-        decode(cmg.nro_motor,null,'-',cmg.nro_motor) as numeroMotor,
-        decode(cmg.nro_chasis,null,'-',cmg.nro_chasis) as numeroChasis,
-        decode(cmg.nro_placa,null,'-',cmg.nro_placa) as numeroPlaca,
-        decode(cmg.val_const_gar,null,0,cmg.val_const_gar) as montoGarantia,
-        decode(cmg.val_realiz_gar,null,0,cmg.val_realiz_gar) as montoValorizacion,
-        decode(a.val_pre_docu,null,0,a.val_pre_docu) as val_pre_docu,
-        decode(gm.des_moneda,null,'-',gm.des_moneda) as nomeMone,
-        decode(gm.des_larga_moneda,null,'-',gm.des_larga_moneda) as nomeMoneLargo,
-        letra.letras(pkg_factu_elect.obte_valo_oper('XXX',cmg.val_const_gar),'') as montoTexto,
-        letra.letras(pkg_factu_elect.obte_valo_oper('XXX',cmg.val_realiz_gar),'') as montoValorizacionTexto,
-        -- MBARDALES CONTRATO ANEXOS
-        UPPER(mp.des_nombre) as desc_provincia
-        from vve_cred_maes_gara cmg
-        inner join vve_cred_soli_gara vcs
-        on vcs.cod_gara = cmg.cod_garantia
-        inner join gen_persona gp
-        on gp.cod_perso in cmg.cod_pers_prop and cmg.ind_otor = 'D'
-        inner join vve_tipo_veh vtv
-        on vtv.cod_tipo_veh = cmg.cod_tipo_veh
-        inner join Arfafe a
-        on a.no_orden_desc = cmg.num_pedido_veh
-        inner join gen_moneda gm
-        on gm.cod_moneda  =  (case a.moneda when 'DOL' then 2 when 'SOL' then 1 end)
-        -- MBARDALES CONTRATO ANEXOS
-        inner join gen_mae_provincia mp
-        on mp.cod_id_provincia = cmg.cod_of_registral
 
-        --inner join vve_cred_mae_aval cma
-        --on cma.cod_per_aval = cmg.cod_pers_prop or cmg.ind_otor in ('F','A')
+			IF (p_ind_tipo_gara = 'N') THEN
+				OPEN p_ret_cursor FOR
+					select 
+						count(1) as item, 
+						decode(gp.nom_perso,null,'-',gp.nom_perso) as cliente,
+						decode(cmg.txt_marca,null,'-',cmg.txt_marca) as marca,
+						decode(cmg.txt_modelo,null,'-',cmg.txt_modelo) as modelo,
+						decode(vtv.des_tipo_veh,null,'-',vtv.des_tipo_veh) as tipoVeh,
+						decode(cmg.nro_motor,null,'-',cmg.nro_motor) as numeroMotor,
+						decode(cmg.nro_chasis,null,'-',cmg.nro_chasis) as numeroChasis,
+						decode(cmg.nro_placa,null,'-',cmg.nro_placa) as numeroPlaca,
+						decode(cmg.val_const_gar,null,0,cmg.val_const_gar) as montoGarantia,
+						decode(cmg.val_realiz_gar,null,0,cmg.val_realiz_gar) as montoValorizacion,
+						decode(a.val_pre_docu,null,0,a.val_pre_docu) as val_pre_docu,
+						--0 as val_pre_docu,
+						decode(gm.des_moneda,null,'-',gm.des_moneda) as nomeMone,
+						--'USD'  as nomeMone,
+						decode(gm.des_larga_moneda,null,'-',gm.des_larga_moneda) as nomeMoneLargo,
+						--'Dólares' as nomeMoneLargo,
+						letra.letras(pkg_factu_elect.obte_valo_oper('XXX',cmg.val_const_gar),'') as montoTexto,
+						letra.letras(pkg_factu_elect.obte_valo_oper('XXX',cmg.val_realiz_gar),'') as montoValorizacionTexto,
+						-- MBARDALES CONTRATO ANEXOS
+						UPPER(mp.des_nombre) as desc_provincia
+						--'LIMA'  as desc_provincia
+					from vve_cred_maes_gara cmg
+					inner join vve_cred_soli_gara vcs
+					on vcs.cod_gara = cmg.cod_garantia
+					inner join gen_persona gp
+					on gp.cod_perso in cmg.cod_pers_prop and cmg.ind_otor = 'D'
+					inner join vve_tipo_veh vtv
+					on vtv.cod_tipo_veh = cmg.cod_tipo_veh
+					inner join Arfafe a
+					on a.no_orden_desc = cmg.num_pedido_veh
+					inner join gen_moneda gm
+					on gm.cod_moneda  =  (case a.moneda when 'DOL' then 2 when 'SOL' then 1 end)
+					inner join gen_mae_provincia mp
+					on mp.cod_id_provincia = cmg.cod_of_registral
+					where vcs.cod_soli_cred = p_cod_soli_cred
+						and cmg.ind_tipo_garantia = 'M'
+						and vcs.ind_inactivo = 'N'
+						and vcs.ind_gara_adic = 'N'
+					group by gp.nom_perso,cmg.txt_marca,cmg.txt_modelo,
+						vtv.des_tipo_veh,cmg.nro_motor,cmg.nro_chasis,cmg.nro_placa,
+						cmg.val_const_gar,cmg.val_realiz_gar,a.val_pre_docu,gm.des_moneda,gm.des_larga_moneda, mp.des_nombre;
+	/*   union all
+			select 
+						count(1) as item, 
+						cma.txt_nomb_pers||' '||cma.txt_apel_pate_pers||' '||cma.txt_apel_mate_pers as cliente,
+						decode(cmg.txt_marca,null,'-',cmg.txt_marca) as marca,
+						decode(cmg.txt_modelo,null,'-',cmg.txt_modelo) as modelo,
+						decode(vtv.des_tipo_veh,null,'-',vtv.des_tipo_veh) as tipoVeh,
+						decode(cmg.nro_motor,null,'-',cmg.nro_motor) as numeroMotor,
+						decode(cmg.nro_chasis,null,'-',cmg.nro_chasis) as numeroChasis,
+						decode(cmg.nro_placa,null,'-',cmg.nro_placa) as numeroPlaca,
+						decode(cmg.val_const_gar,null,0,cmg.val_const_gar) as montoGarantia,
+						decode(cmg.val_realiz_gar,null,0,cmg.val_realiz_gar) as montoValorizacion,
+						--decode(a.val_pre_docu,null,0,a.val_pre_docu) as val_pre_docu,
+						0 as val_pre_docu,
+						--decode(gm.des_moneda,null,'-',gm.des_moneda) as nomeMone,
+						'USD'  as nomeMone,
+						--decode(gm.des_larga_moneda,null,'-',gm.des_larga_moneda) as nomeMoneLargo,
+						'Dólares' as nomeMoneLargo,
+						letra.letras(pkg_factu_elect.obte_valo_oper('XXX',cmg.val_const_gar),'') as montoTexto,
+						letra.letras(pkg_factu_elect.obte_valo_oper('XXX',cmg.val_realiz_gar),'') as montoValorizacionTexto,
+						-- MBARDALES CONTRATO ANEXOS
+						UPPER(mp.des_nombre) as desc_provincia
+						--'LIMA'  as desc_provincia
+					from vve_cred_maes_gara cmg
+					inner join vve_cred_soli_gara vcs
+					on vcs.cod_gara = cmg.cod_garantia
+					inner join vve_tipo_veh vtv
+					on vtv.cod_tipo_veh = cmg.cod_tipo_veh
+					-- MBARDALES CONTRATO ANEXOS
+					inner join gen_mae_provincia mp
+					on mp.cod_id_provincia = cmg.cod_of_registral
+					inner join vve_cred_mae_aval cma
+						on cma.cod_per_aval = cmg.cod_pers_prop --or cmg.ind_otor in ('F','A')
+					where vcs.cod_soli_cred = p_cod_soli_cred
+						and cmg.ind_tipo_garantia = 'M'
+						and vcs.ind_inactivo = 'N'
+						and vcs.ind_gara_adic = 'S'
+					group by cma.txt_nomb_pers||' '||cma.txt_apel_pate_pers||' '||cma.txt_apel_mate_pers ,cmg.txt_marca,cmg.txt_modelo,
+						vtv.des_tipo_veh,cmg.nro_motor,cmg.nro_chasis,cmg.nro_placa,
+						cmg.val_const_gar,cmg.val_realiz_gar, mp.des_nombre;  */
+				
+			ELSE 
+				v_ind_tipo_gara := 'S';
+				
+				OPEN p_ret_cursor FOR
+					select 
+						count(1) as item, 
+						--decode(gp.nom_perso,null,'-',gp.nom_perso) as cliente,
+						cma.txt_nomb_pers||' '||cma.txt_apel_pate_pers||' '||cma.txt_apel_mate_pers as cliente,
+						decode(cmg.txt_marca,null,'-',cmg.txt_marca) as marca,
+						decode(cmg.txt_modelo,null,'-',cmg.txt_modelo) as modelo,
+						decode(vtv.des_tipo_veh,null,'-',vtv.des_tipo_veh) as tipoVeh,
+						decode(cmg.nro_motor,null,'-',cmg.nro_motor) as numeroMotor,
+						decode(cmg.nro_chasis,null,'-',cmg.nro_chasis) as numeroChasis,
+						decode(cmg.nro_placa,null,'-',cmg.nro_placa) as numeroPlaca,
+						decode(cmg.val_const_gar,null,0,cmg.val_const_gar) as montoGarantia,
+						decode(cmg.val_realiz_gar,null,0,cmg.val_realiz_gar) as montoValorizacion,
+						--decode(a.val_pre_docu,null,0,a.val_pre_docu) as val_pre_docu,
+						0 as val_pre_docu,
+						--decode(gm.des_moneda,null,'-',gm.des_moneda) as nomeMone,
+						'USD'  as nomeMone,
+						--decode(gm.des_larga_moneda,null,'-',gm.des_larga_moneda) as nomeMoneLargo,
+						'Dólares' as nomeMoneLargo,
+						letra.letras(pkg_factu_elect.obte_valo_oper('XXX',cmg.val_const_gar),'') as montoTexto,
+						letra.letras(pkg_factu_elect.obte_valo_oper('XXX',cmg.val_realiz_gar),'') as montoValorizacionTexto,
+						-- MBARDALES CONTRATO ANEXOS
+						UPPER(mp.des_nombre) as desc_provincia
+						--'LIMA'  as desc_provincia
+					from vve_cred_maes_gara cmg
+					inner join vve_cred_soli_gara vcs
+					on vcs.cod_gara = cmg.cod_garantia
+					inner join vve_tipo_veh vtv
+					on vtv.cod_tipo_veh = cmg.cod_tipo_veh
+					inner join gen_mae_provincia mp
+					on mp.cod_id_provincia = cmg.cod_of_registral
+					inner join vve_cred_mae_aval cma
+					on cma.cod_per_aval = cmg.cod_pers_prop 
+					where vcs.cod_soli_cred = p_cod_soli_cred
+						and cmg.ind_tipo_garantia = 'M'
+						and vcs.ind_inactivo = 'N'
+						and vcs.ind_gara_adic = v_ind_tipo_gara
+					group by cma.txt_nomb_pers||' '||cma.txt_apel_pate_pers||' '||cma.txt_apel_mate_pers ,cmg.txt_marca,cmg.txt_modelo,
+						vtv.des_tipo_veh,cmg.nro_motor,cmg.nro_chasis,cmg.nro_placa,
+						cmg.val_const_gar,cmg.val_realiz_gar, mp.des_nombre;  
 
-        where vcs.cod_soli_cred = p_cod_soli_cred
-        and cmg.ind_tipo_garantia = 'M'
-        and vcs.ind_inactivo = 'N'
-        and vcs.ind_gara_adic = v_ind_tipo_gara
+			END IF;	
+			
+		ELSIF  v_tip_soli_cred IN  ('TC02', 'TC03') THEN
+			    v_ind_tipo_gara := 'S';
+        
+        OPEN p_ret_cursor FOR
+          select 
+            count(1) as item, 
+            --decode(gp.nom_perso,null,'-',gp.nom_perso) as cliente,
+            cma.txt_nomb_pers||' '||cma.txt_apel_pate_pers||' '||cma.txt_apel_mate_pers as cliente,
+            decode(cmg.txt_marca,null,'-',cmg.txt_marca) as marca,
+            decode(cmg.txt_modelo,null,'-',cmg.txt_modelo) as modelo,
+            decode(vtv.des_tipo_veh,null,'-',vtv.des_tipo_veh) as tipoVeh,
+            decode(cmg.nro_motor,null,'-',cmg.nro_motor) as numeroMotor,
+            decode(cmg.nro_chasis,null,'-',cmg.nro_chasis) as numeroChasis,
+            decode(cmg.nro_placa,null,'-',cmg.nro_placa) as numeroPlaca,
+            decode(cmg.val_const_gar,null,0,cmg.val_const_gar) as montoGarantia,
+            decode(cmg.val_realiz_gar,null,0,cmg.val_realiz_gar) as montoValorizacion,
+            --decode(a.val_pre_docu,null,0,a.val_pre_docu) as val_pre_docu,
+            0 as val_pre_docu,
+            --decode(gm.des_moneda,null,'-',gm.des_moneda) as nomeMone,
+            'USD'  as nomeMone,
+            --decode(gm.des_larga_moneda,null,'-',gm.des_larga_moneda) as nomeMoneLargo,
+            'Dólares' as nomeMoneLargo,
+            letra.letras(pkg_factu_elect.obte_valo_oper('XXX',cmg.val_const_gar),'') as montoTexto,
+            letra.letras(pkg_factu_elect.obte_valo_oper('XXX',cmg.val_realiz_gar),'') as montoValorizacionTexto,
+            -- MBARDALES CONTRATO ANEXOS
+            UPPER(mp.des_nombre) as desc_provincia
+            --'LIMA'  as desc_provincia
+          from vve_cred_maes_gara cmg
+          inner join vve_cred_soli_gara vcs
+          on vcs.cod_gara = cmg.cod_garantia
+          inner join vve_tipo_veh vtv
+          on vtv.cod_tipo_veh = cmg.cod_tipo_veh
+          -- MBARDALES CONTRATO ANEXOS
+          inner join gen_mae_provincia mp
+          on mp.cod_id_provincia = cmg.cod_of_registral
+          inner join vve_cred_mae_aval cma
+          on cma.cod_per_aval = cmg.cod_pers_prop 
+          where vcs.cod_soli_cred = p_cod_soli_cred
+            and cmg.ind_tipo_garantia = 'M'
+            and vcs.ind_inactivo = 'N'
+            and vcs.ind_gara_adic = v_ind_tipo_gara
+          group by cma.txt_nomb_pers||' '||cma.txt_apel_pate_pers||' '||cma.txt_apel_mate_pers ,cmg.txt_marca,cmg.txt_modelo,
+            vtv.des_tipo_veh,cmg.nro_motor,cmg.nro_chasis,cmg.nro_placa,
+            cmg.val_const_gar,cmg.val_realiz_gar, mp.des_nombre;  
 
-        group by gp.nom_perso,cmg.txt_marca,cmg.txt_modelo,
-        vtv.des_tipo_veh,cmg.nro_motor,cmg.nro_chasis,cmg.nro_placa,
-        cmg.val_const_gar,cmg.val_realiz_gar,a.val_pre_docu,gm.des_moneda,gm.des_larga_moneda, mp.des_nombre;  
-
+		END IF;	
+--<F-PROY CRED. ASALASM >
         p_ret_esta := 1;
         p_ret_mens := 'La consulta se realizó de manera exitosa';
     EXCEPTION
@@ -2740,7 +2978,12 @@ Log de Cambios
   v_det_list_fact VARCHAR2(4000):=NULL;
   v_det_nota_cred VARCHAR2(4000):=NULL;
 
+	v_tip_soli_cred VARCHAR2(4):= NULL;
   BEGIN
+    SELECT tip_soli_cred 
+		INTO v_tip_soli_cred 
+		FROM vve_cred_soli 
+		WHERE cod_soli_cred = p_cod_soli_cred;
 
      BEGIN
 
@@ -2791,20 +3034,39 @@ Log de Cambios
     END LOOP;
 
     dbms_output.put_line(v_det_leasing1);
+    
+		IF v_tip_soli_cred = 'TC01'  THEN
+				
+			-- SE AGREGO LISTA DE FACTURAS PARA LEASING
+			FOR rs IN (SELECT distinct(substr(aff.no_factu,1,4)||'-'||substr(aff.no_factu,5,length(aff.no_factu)-4)) no_docu
+									FROM ARFAFE aff
+									INNER JOIN vve_cred_maes_gara cmg ON aff.no_orden_desc = cmg.num_pedido_veh
+									INNER JOIN  vve_cred_soli_gara csg ON csg.cod_gara = cmg.cod_garantia 
+									WHERE csg.cod_soli_cred = p_cod_soli_cred) LOOP
 
-    -- SE AGREGO LISTA DE FACTURAS PARA LEASING
-    FOR rs IN (SELECT distinct(substr(aff.no_factu,1,4)||'-'||substr(aff.no_factu,5,length(aff.no_factu)-4)) no_docu
-                FROM ARFAFE aff
-                INNER JOIN vve_cred_maes_gara cmg ON aff.no_orden_desc = cmg.num_pedido_veh
-                INNER JOIN  vve_cred_soli_gara csg ON csg.cod_gara = cmg.cod_garantia 
-                WHERE csg.cod_soli_cred = p_cod_soli_cred) LOOP
+								 IF (v_det_list_fact IS NULL) THEN
+										v_det_list_fact := rs.no_docu;
+								 ELSE 
+										v_det_list_fact := v_det_list_fact || ', ' || rs.no_docu;
+								 END IF;
+			END LOOP;
+			
+		ELSE
+					
+			FOR rs IN (SELECT distinct(substr(aff.no_factu,1,4)||'-'||substr(aff.no_factu,5,length(aff.no_factu)-4)) no_docu
+									FROM ARFAFE aff, vve_cred_soli_pedi_veh sp
+									WHERE  aff.no_orden_desc = sp.num_pedido_veh
+										AND  nvl(sp.ind_inactivo,'N' ) = 'N'
+										AND  sp.cod_soli_cred = p_cod_soli_cred) LOOP
 
-               IF (v_det_list_fact IS NULL) THEN
-                  v_det_list_fact := rs.no_docu;
-               ELSE 
-                  v_det_list_fact := v_det_list_fact || ', ' || rs.no_docu;
-               END IF;
-    END LOOP;
+								 IF (v_det_list_fact IS NULL) THEN
+										v_det_list_fact := rs.no_docu;
+								 ELSE 
+										v_det_list_fact := v_det_list_fact || ', ' || rs.no_docu;
+								 END IF;
+			END LOOP;
+			 
+		END if;	
 
     dbms_output.put_line(v_det_list_fact);
 
@@ -2951,7 +3213,7 @@ Log de Cambios
         (select sum(can_tota_letr + can_letr_peri_grac )from vve_cred_soli
         where cod_soli_cred = p_cod_soli_cred) num_letras,
         cs.val_mon_fin monto_financiar,
-        cs.val_dias_peri_grac venc_prim_letra,
+        cs.can_dias_venc_1ra_letr venc_prim_letra,--cs.val_dias_peri_grac venc_prim_letra,  --cs.can_dias_venc_1ra_letr
         (select v_lista_cuot_grac from dual) AS lista_cuota_grac, 
         (select v_mont_pena from dual) AS monto_penalidad,
         (SELECT can_dias_venc_1ra_letr FROM vve_cred_soli WHERE cod_soli_cred = p_cod_soli_cred) AS nro_dias_pago,
